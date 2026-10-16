@@ -17,17 +17,8 @@
   <canvas id="game"></canvas>
 
   <div id="hud" class="hidden">
-    <div class="hud-top-left panel">
-      <div class="label">SCORE</div>
-      <div id="score" class="big">0</div>
-      <div id="dist" class="small">0.00 km</div>
-    </div>
-
     <div class="hud-top-right panel">
-      <div class="label">HULL</div>
-      <div id="hull" class="hull"><i></i><i></i><i></i></div>
-      <div class="label">HEAT</div>
-      <div id="heat" class="heat"><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="hull" class="hull"><i>&#10084;</i><i>&#10084;</i><i>&#10084;</i></div>
     </div>
 
     <div id="warning" class="hidden">
@@ -63,30 +54,21 @@
       <button data-action="right" aria-label="Steer right">&#9654;</button>
     </div>
     <div class="touch-right">
-      <button data-action="boost" class="t-boost">GAS</button>
       <button data-action="suction" class="t-suction">SUCK</button>
       <button data-action="hop" class="t-hop">HOP</button>
     </div>
   </div>
 
   <div id="screen-title" class="screen">
-    <div class="layout">
-      <div class="card">
-        <div class="kicker">2nd-Gen Roadster · Escape Run</div>
-        <h1>ROADSTER<br><span>PURSUIT</span></h1>
-        <p class="lead">The cops want the new Roadster. Escape the chaos for as long as you can.</p>
-        <div class="howto">
-          <div class="how"><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div class="or">or arrows</div><b>Drive</b></div>
-          <div class="how jump"><div class="keys"><kbd class="wide">SPACE</kbd></div><div class="or">hold = hover</div><b>Thrust jump</b></div>
-          <div class="how suck"><div class="keys"><kbd class="wide">SHIFT</kbd></div><div class="or">hold</div><b>Suction</b></div>
-        </div>
-        <button id="btn-start" class="cta">START RUN</button>
-        <div class="foot">Enter to start · P pause · M mute<span id="best-title"></span></div>
+    <div class="card intro">
+      <h1>ROADSTER<br><span>PURSUIT</span></h1>
+      <p class="lead">Escape the police in the new Roadster.</p>
+      <div class="howto">
+        <div class="how"><div class="keys"><kbd>A</kbd><kbd>D</kbd></div><div class="or">or &larr; &rarr;</div><b>Steer</b></div>
+        <div class="how jump"><div class="keys"><kbd class="wide">SPACE</kbd></div><div class="or">hold = fly</div><b>Thrust jump</b></div>
+        <div class="how suck"><div class="keys"><kbd class="wide">SHIFT</kbd></div><div class="or">hold</div><b>Suction</b></div>
       </div>
-      <div class="card board-card">
-        <div class="kicker">Leaderboard</div>
-        <ol id="board-title" class="board"><li class="muted">Loading…</li></ol>
-      </div>
+      <button id="btn-start" class="cta">START</button>
     </div>
   </div>
 

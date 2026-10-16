@@ -2,8 +2,6 @@
 const BINDINGS = {
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
-  boost: ['ArrowUp', 'KeyW'],
-  brake: ['ArrowDown', 'KeyS'],
   hop: ['Space'],
   suction: ['ShiftLeft', 'ShiftRight', 'KeyF'],
   pause: ['KeyP', 'Escape'],

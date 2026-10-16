@@ -57,7 +57,7 @@ export class Police {
 
   spawnHeli(drops) {
     const car = this.g.car;
-    this.heli = { s: car.s - 140, u: 0, h: 34, phase: 'arrive', drops, dropT: 1.2, t: 0 };
+    this.heli = { s: car.s - 140, u: 0, h: 34, phase: 'arrive', drops, dropT: 1.2, t: 0, pass: 0, swoops: 0, spin: 0, vh: 0 };
     this.heliMesh.visible = true;
     this.cone.visible = true;
   }
@@ -66,30 +66,59 @@ export class Police {
     const g = this.g, car = g.car, T = g.track, H = this.heli;
     if (!H) return;
     const km = car.s / 1000;
+    const LEAD = 135; // mines drop far enough ahead to read and react
     H.t += dt;
-    const lead = 90;
-    if (H.phase === 'arrive') {
+    if (H.phase === 'arrive' || H.phase === 'return') {
       H.s += (car.v + 45) * dt;
       H.h += (16 - H.h) * Math.min(1, dt * 1.2);
-      if (H.s > car.s + lead) H.phase = 'hunt';
+      if (H.s > car.s + LEAD) { H.phase = 'hunt'; H.pass = 0; }
     } else if (H.phase === 'hunt') {
-      H.s = car.s + lead + Math.sin(H.t * 0.8) * 6;
+      H.s = car.s + LEAD + Math.sin(H.t * 0.8) * 6;
       H.h += (15 - H.h) * Math.min(1, dt * 2);
       H.u += (THREE.MathUtils.clamp(car.u, -6, 6) - H.u) * Math.min(1, dt * 1.5);
       H.dropT -= dt;
       if (H.dropT <= 0 && H.drops > 0) {
-        H.dropT = Math.max(0.75, 1.7 - km * 0.08);
-        if (!T.zoneAt(H.s) && !T.zoneAt(H.s + 10)) { this.dropMine(H); H.drops--; }
+        H.dropT = Math.max(0.9, 1.8 - km * 0.08);
+        if (!T.zoneAt(H.s) && !T.zoneAt(H.s + 10)) { this.dropMine(H); H.drops--; H.pass++; }
       }
-      if (H.drops <= 0 && H.dropT <= -1) H.phase = 'leave';
+      // after a few mines it swoops low: the chance to ram it with thrust flight
+      const clear = !T.zoneAt(H.s) && !T.zoneAt(H.s - 60);
+      if (H.pass >= 3 && H.swoops < 2 && clear && H.dropT > 0.4) {
+        H.phase = 'swoop'; H.swoops++;
+        g.onWarn('swoop');
+      } else if (H.drops <= 0 && H.dropT <= -1.5) H.phase = 'leave';
+    } else if (H.phase === 'swoop') {
+      H.s += (car.v - 34) * dt;
+      H.h += (7 - H.h) * Math.min(1, dt * 2.5);
+      H.u += (THREE.MathUtils.clamp(car.u, -6, 6) - H.u) * Math.min(1, dt * 1.2);
+      if (Math.abs(car.s - H.s) < 5.5 && Math.abs(car.u - H.u) < 4.5 && car.h > H.h - 3.6 && car.h < H.h + 1.8) {
+        this.downHeli();
+      } else if (H.s < car.s - 30) {
+        H.phase = H.drops > 0 ? 'return' : 'leave';
+      }
+    } else if (H.phase === 'down') {
+      H.vh -= 22 * dt;
+      H.h += H.vh * dt;
+      H.s += car.v * 0.75 * dt;
+      H.spin += dt * 7;
+      g.track.frame(H.s, H.u, Math.max(H.h, 0) + 1, _F, false);
+      g.fx.burn(_F.pos, 1.2);
+      if (H.h <= 0.5) {
+        g.fx.explode(_F.pos, 1.6);
+        g.sound.boom(1.3);
+        g.shake = Math.max(g.shake, 0.9);
+        g.blast(H.s, 30);
+        this.hideHeli();
+        return;
+      }
     } else {
       H.s += (car.v - 25) * dt;
       H.h += 22 * dt;
-      if (H.h > 90) { this.heli = null; this.heliMesh.visible = false; this.cone.visible = false; this.spot.intensity = 0; return; }
+      if (H.h > 90) { this.hideHeli(); return; }
     }
     const m = this.heliMesh;
-    T.place(m, H.s, H.u, H.h, Math.PI + Math.sin(H.t) * 0.15, false); // faces the Roadster
-    m.rotateX(-0.12);
+    T.place(m, H.s, H.u, H.h, Math.PI + Math.sin(H.t) * 0.15 + (H.spin || 0), false); // faces the Roadster
+    m.rotateX(H.phase === 'swoop' ? -0.25 : -0.12);
     m.userData.rotor.rotation.y += dt * 38;
     m.userData.tailRotor.rotation.x += dt * 50;
     // searchlight onto the car
@@ -97,12 +126,31 @@ export class Police {
     _dir.copy(_F.pos).sub(m.position);
     const dist = _dir.length();
     _dir.divideScalar(dist);
+    const lit = H.phase !== 'leave' && H.phase !== 'down';
+    this.cone.visible = lit && dist > 4;
     this.cone.position.copy(m.position);
     this.cone.quaternion.setFromUnitVectors(DOWN, _dir);
     this.cone.scale.set(dist / 18, dist, dist / 18);
     this.spot.position.copy(m.position);
     this.spot.target.position.copy(_F.pos);
-    this.spot.intensity = H.phase === 'leave' ? 0 : 900;
+    this.spot.intensity = lit ? 900 : 0;
+  }
+
+  downHeli() {
+    const g = this.g, H = this.heli;
+    H.phase = 'down'; H.vh = 4; H.spin = 0;
+    g.track.frame(H.s, H.u, H.h, _F, false);
+    g.fx.explode(_F.pos, 1.1);
+    g.sound.boom(1);
+    g.hud.flash(0.5);
+    g.onHeliDown();
+  }
+
+  hideHeli() {
+    this.heli = null;
+    this.heliMesh.visible = false;
+    this.cone.visible = false;
+    this.spot.intensity = 0;
   }
 
   dropMine(H) {

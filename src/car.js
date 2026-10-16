@@ -3,7 +3,7 @@ import { ROAD_HALF, TUN_FLOOR, TUN_HALF, arcAngle, wrapU } from './track.js';
 
 const GRAVITY = 26;
 const HOP_V = 12.5;
-const HOP_COST = 15;
+const HOP_COST = 22;
 
 export class Car {
   constructor() { this.reset(); }
@@ -13,7 +13,7 @@ export class Car {
     this.v = 0; this.vu = 0; this.vh = 0;
     this.grounded = true; this.falling = false;
     this.pressure = 100; this.fan = 100;
-    this.suction = false; this.boosting = false; this.accelerating = false; this.hovering = false;
+    this.suction = false; this.boosting = false; this.hovering = false;
     this.hull = 3; this.invuln = 0;
     this.trick = null; this.trickFlip = false; this.airTime = 0;
     this.launch = 0; this.launchFx = 0; this.frozen = true;
@@ -32,25 +32,21 @@ export class Car {
 
     // --- suction fans (2 G of downforce in the real car)
     this.suction = c.suction && this.fan > 1 && !this.falling;
-    if (this.suction) this.fan = Math.max(0, this.fan - 20 * dt);
-    else this.fan = Math.min(100, this.fan + 13 * dt);
+    if (this.suction) this.fan = Math.max(0, this.fan - 32 * dt);
+    else this.fan = Math.min(100, this.fan + 11 * dt);
 
     // --- longitudinal
     // standard speed creeps up the longer you survive (134 mph -> ~220 mph)
     const cruise = 60 + Math.min(38, (this.s / 1000) * 3);
-    const target = c.brake ? 30 : cruise;
     // rear cold-gas thrusters only fire for the launch at the start of a run
     this.boosting = this.launchFx > 0;
     if (this.launchFx > 0) this.launchFx -= dt;
-    this.accelerating = c.boost && !this.falling && this.launch <= 0;
     if (this.launch > 0) {
       this.launch -= dt;
-      this.v += 46 * dt;
-    } else if (this.accelerating) {
-      this.v = Math.min(cruise + 26, this.v + 18 * dt);
+      this.v += 33 * dt; // 0-60 mph (26.8 m/s) in 0.81 s, as shown at the reveal
     } else {
-      const k = this.v > target ? 0.9 : 1.6;
-      this.v += (target - this.v) * Math.min(1, k * dt);
+      const k = this.v > cruise ? 0.9 : 1.6;
+      this.v += (cruise - this.v) * Math.min(1, k * dt);
     }
     if (this.falling) this.v *= 1 - 1.2 * dt;
     this.s += this.v * dt;
@@ -113,11 +109,13 @@ export class Car {
       this.airTime += dt;
       this.hovering = c.hopHeld && this.pressure > 0.5 && !this.falling && this.hopBurst <= 0;
       if (this.hovering) {
-        this.vh += 21 * dt;
-        this.pressure = Math.max(0, this.pressure - 20 * dt);
+        this.vh += (this.h < 9 ? 31 : 24) * dt; // perimeter thrusters can climb while pressure lasts
+        this.pressure = Math.max(0, this.pressure - 32 * dt);
       }
       this.vh -= GRAVITY * dt;
       this.h += this.vh * dt;
+      const ceiling = tz ? 9 : 11;
+      if (this.h > ceiling) { this.h = ceiling; this.vh = Math.min(this.vh, 0); }
       if (this.trick) this.trick.t += dt;
 
       if (this.h <= 0 && !this.falling) {
@@ -139,7 +137,7 @@ export class Car {
       this.hovering = false;
     }
 
-    if (!this.boosting && !this.hovering) this.pressure = Math.min(100, this.pressure + 2.5 * dt);
+    if (!this.boosting && !this.hovering) this.pressure = Math.min(100, this.pressure + 2 * dt);
     if (this.invuln > 0) this.invuln -= dt;
   }
 

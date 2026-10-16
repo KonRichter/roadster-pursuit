@@ -271,38 +271,6 @@ export function makeRiver(length) {
   return m;
 }
 
-// ---------------------------------------------------------------- Airliner
-export function makePlane() {
-  const g = new THREE.Group();
-  const hull = std('planeHull', { color: 0xd9dde2, roughness: 0.4, metalness: 0.5 });
-  const dark = std('planeDark', { color: 0x1b2230, roughness: 0.5, metalness: 0.4 });
-  const stripe = std('planeStripe', { color: 0x1c4f9c, roughness: 0.4, metalness: 0.4 });
-  const body = mesh(new THREE.CylinderGeometry(2.1, 2.1, 30, 16).rotateX(Math.PI / 2), hull, 0, 2.4, 0);
-  g.add(body);
-  g.add(mesh(new THREE.SphereGeometry(2.1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2), hull, 0, 2.4, 15));
-  g.add(mesh(new THREE.ConeGeometry(2.1, 5, 16).rotateX(-Math.PI / 2), hull, 0, 2.6, -17.5));
-  g.add(mesh(box(4.3, 0.5, 24), stripe, 0, 2.6, 1, false));
-  g.add(mesh(box(4.25, 0.35, 1.6), dark, 0, 3.4, 13.4, false)); // cockpit windows
-  const wingL = new THREE.Group(), wingR = new THREE.Group();
-  for (const [w, sx] of [[wingL, -1], [wingR, 1]]) {
-    w.add(mesh(box(15, 0.45, 5), hull, sx * 9.2, 1.6, 0.5));
-    w.add(mesh(new THREE.CylinderGeometry(0.9, 1.0, 4, 12).rotateX(Math.PI / 2), dark, sx * 7, 0.6, 1.8));
-    g.add(w);
-  }
-  g.add(mesh(box(0.4, 5.5, 4), stripe, 0, 6, -15.5));
-  g.add(mesh(box(10, 0.3, 3), hull, 0, 3.4, -16));
-  g.userData.wingL = wingL;
-  g.userData.wingR = wingR;
-  return g;
-}
-
-export function makeWing() {
-  const g = new THREE.Group();
-  g.add(mesh(box(8.5, 0.5, 4.6), std('planeHull', {}), 0, 0.3, 0));
-  g.add(mesh(new THREE.CylinderGeometry(0.9, 1.0, 3.6, 12).rotateX(Math.PI / 2), std('planeDark', {}), 1.5, 0.9, 0.6));
-  return g;
-}
-
 // ---------------------------------------------------------------- Police helicopter
 export function makeHeli() {
   const g = new THREE.Group();

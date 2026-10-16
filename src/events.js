@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import * as Models from './models.js';
 import { makeFrame } from './track.js';
 
-const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0, plane: 30 };
-const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60, plane: 60 };
+const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0 };
+const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60 };
 const GAP_LEN = 36;
 export const INFO = {
   roadblock: { title: 'POLICE ROADBLOCK', hint: 'SPACE: thrust hop over it' },
@@ -13,11 +13,11 @@ export const INFO = {
   overpass: { title: 'OVERPASS COLLAPSE', hint: 'Steer for the open lane or hop the debris' },
   gap: { title: 'BRIDGE OUT', hint: 'SPACE + HOLD: thrust jump & hover across' },
   tunnel: { title: 'TUNNEL CAVE-IN', hint: 'HOLD SHIFT + steer up the wall' },
-  pursuit: { title: 'PURSUIT UNITS INBOUND', hint: 'Hold W to pull away · lure them into hazards' },
+  pursuit: { title: 'POLICE INBOUND – WATCH OUT!', hint: '' },
   heli: { title: 'POLICE CHOPPER', hint: 'It drops mines in your lane: dodge or hop' },
-  plane: { title: 'AIRLINER GOING DOWN', hint: 'Watch the wreck: weave through the open lanes' },
+  swoop: { title: 'CHOPPER SWOOPING LOW', hint: 'SPACE + HOLD: thrust-fly into it to bring it down!' },
 };
-const TUTORIAL = ['pursuit', 'roadblock', 'tanker', 'heli', 'gap', 'plane', 'tunnel', 'overpass'];
+const TUTORIAL = ['pursuit', 'roadblock', 'tanker', 'heli', 'gap', 'tunnel', 'overpass'];
 const align4 = (s) => Math.round(s / 4) * 4;
 const rand = (a, b) => a + Math.random() * (b - a);
 const _F = makeFrame();
@@ -51,9 +51,9 @@ export class Director {
   pickType() {
     if (this.count < TUTORIAL.length) return TUTORIAL[this.count];
     if (!this.bag.length) {
-      const pool = ['roadblock', 'tanker', 'overpass', 'gap', 'tunnel', 'pursuit', 'heli', 'plane'];
+      const pool = ['roadblock', 'tanker', 'overpass', 'gap', 'tunnel', 'pursuit', 'heli'];
       if (this.g.heat >= 2) pool.push('roadblock', 'pursuit', 'tanker', 'heli');
-      if (this.g.heat >= 3) pool.push('overpass', 'gap', 'plane');
+      if (this.g.heat >= 3) pool.push('overpass', 'gap');
       if (this.g.heat >= 4) pool.push('pursuit', 'heli', 'roadblock');
       this.bag = shuffle(pool);
       if (this.bag[this.bag.length - 1] === this.last) this.bag.unshift(this.bag.pop());
@@ -70,7 +70,7 @@ export class Director {
       const e = { type, s, spawned: false, warned: false, triggered: false, done: false, hit: false, meshes: [], obs: [], anim: [] };
       if (type === 'gap') { e.zone = { type: 'gap', s0: s, s1: s + GAP_LEN }; this.g.track.addZone(e.zone); }
       if (type === 'tunnel') { e.zone = { type: 'tunnel', s0: s - PRE.tunnel, s1: s + POST.tunnel - 10 }; this.g.track.addZone(e.zone); }
-      e.clear = type === 'gap' ? GAP_LEN + 4 : type === 'tunnel' ? 12 : type === 'plane' ? 18 : 8;
+      e.clear = type === 'gap' ? GAP_LEN + 4 : type === 'tunnel' ? 12 : 8;
       this.events.push(e);
       // events come faster the further you get
       const km = this.g.car.s / 1000;
@@ -149,61 +149,6 @@ export class Director {
       }
       this.addObs(e, { s, u: 0, hs: 6.5, hu: 10.2, hgt: 6, kind: 'rubble' });
       for (const a of e.anim) T.place(a.m, a.s, a.u, a.h, 0, a.mode);
-    } else if (e.type === 'plane') {
-      e.open = Math.random() < 0.5 ? -1 : 1;
-      const p = this.addMesh(e, Models.makePlane());
-      p.visible = false;
-      e.plane = p;
-      e.wing = this.addMesh(e, Models.makeWing());
-      e.wing.visible = false;
-      // fuselage blocks one side, the broken wing lies across the other side further back
-      e.fuseObs = this.addObs(e, { s, u: -e.open * 3.5, hs: 15, hu: 4.5, hgt: 5, kind: 'plane', active: false });
-      e.wingObs = this.addObs(e, { s: s - 80, u: e.open * 4.5, hs: 2.6, hu: 3.6, hgt: 1.3, kind: 'debris', active: false });
-    }
-  }
-
-  updatePlane(e, d, dt) {
-    const g = this.g, car = g.car, T = g.track;
-    if (!e.triggered && d < 400) {
-      e.triggered = true; e.warned = true;
-      g.onWarn('plane');
-      e.t = 0;
-      e.T = Math.max(1.6, (d - 180) / Math.max(car.v, 30));
-      e.plane.visible = true;
-      g.sound.jet();
-    }
-    if (!e.triggered) return;
-    if (!e.crashed) {
-      e.t += dt;
-      const k = Math.min(1, e.t / e.T);
-      const ps = e.s + 280 * (1 - k), ph = 70 * (1 - k) + 1;
-      T.place(e.plane, ps, -e.open * 3.5 * k, ph, Math.PI + 0.12 * k, false);
-      e.plane.rotateX(0.24 * (1 - k));
-      e.plane.rotateZ(0.35 * Math.sin(e.t * 2));
-      T.frame(ps, -e.open * 3.5 * k, ph + 2, _F, false);
-      for (let i = 0; i < 3; i++) g.fx.burn(_F.pos, 1.5);
-      if (k >= 1) {
-        e.crashed = true;
-        e.burnT = 30;
-        T.place(e.plane, e.s, -e.open * 3.5, 0, Math.PI + 0.12, false);
-        e.plane.rotateZ(-e.open * 0.12);
-        (e.open > 0 ? e.plane.userData.wingR : e.plane.userData.wingL).visible = false;
-        e.wing.visible = true;
-        T.place(e.wing, e.s - 80, e.open * 4.5, 0, 0.3 * e.open, false);
-        e.fuseObs.active = true; e.wingObs.active = true;
-        T.frame(e.s, -e.open * 3.5, 2, _F, false);
-        g.fx.explode(_F.pos, 2.2);
-        T.frame(e.s - 80, e.open * 4.5, 1, _F, false);
-        g.fx.explode(_F.pos, 1);
-        g.sound.boom(1.6);
-        g.hud.flash(0.7);
-        g.shake = Math.max(g.shake, 1.4);
-        g.blast(e.s, 60);
-      }
-    } else if (e.burnT > 0 && d > -40) {
-      e.burnT -= dt;
-      T.frame(e.s + rand(-12, 12), -e.open * 3 + rand(-3, 3), 3, _F, false);
-      g.fx.burn(_F.pos, 1.5);
     }
   }
 
@@ -226,7 +171,7 @@ export class Director {
       if (!e.spawned && d < 470 && e.type !== 'pursuit' && e.type !== 'heli') this.spawn(e);
 
       const warnTime = e.type === 'tunnel' ? 3.4 : 2.7;
-      if (!e.warned && e.type !== 'pursuit' && e.type !== 'heli' && e.type !== 'plane' && d < Math.max(car.v, 25) * warnTime) {
+      if (!e.warned && e.type !== 'pursuit' && e.type !== 'heli' && d < Math.max(car.v, 25) * warnTime) {
         e.warned = true;
         g.onWarn(e.type);
       }
@@ -239,7 +184,6 @@ export class Director {
         g.sound.rumble();
         g.shake = Math.max(g.shake, 0.5);
       }
-      if (e.type === 'plane' && e.spawned) this.updatePlane(e, d, dt);
       if (e.type === 'pursuit' && !e.triggered && d < 0) {
         e.triggered = true; e.done = true;
         g.onWarn('pursuit');

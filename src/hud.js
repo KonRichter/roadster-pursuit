@@ -4,9 +4,9 @@ const $ = (id) => document.getElementById(id);
 export class HUD {
   constructor() {
     this.el = {
-      hud: $('hud'), score: $('score'), dist: $('dist'), speed: $('speed'),
+      hud: $('hud'), speed: $('speed'),
       pressure: $('m-pressure'), fan: $('m-fan'),
-      hull: [...$('hull').children], heat: [...$('heat').children],
+      hull: [...$('hull').children],
       warning: $('warning'), warnTitle: $('warn-title'), warnHint: $('warn-hint'),
       center: $('center-msg'), popups: $('popups'), flash: $('flash'),
     };
@@ -26,8 +26,6 @@ export class HUD {
 
   update(dt, car, game) {
     const e = this.el;
-    this.set('score', Math.floor(game.score), (v) => (e.score.textContent = v.toLocaleString()));
-    this.set('dist', (car.s / 1000).toFixed(2), (v) => (e.dist.textContent = v + ' km'));
     this.set('speed', Math.round(car.v * 2.237), (v) => (e.speed.textContent = v));
     this.set('pressure', Math.round(car.pressure), (v) => {
       e.pressure.style.transform = `scaleX(${v / 100})`;
@@ -38,7 +36,6 @@ export class HUD {
       e.fan.parentElement.classList.toggle('low', v < 15);
     });
     this.set('hull', car.hull, (v) => e.hull.forEach((n, i) => n.classList.toggle('off', i >= v)));
-    this.set('heat', game.heat, (v) => e.heat.forEach((n, i) => n.classList.toggle('on', i < v)));
 
     if (this.warnT > 0) {
       this.warnT -= dt;
@@ -58,6 +55,7 @@ export class HUD {
     const e = this.el;
     e.warnTitle.textContent = title;
     e.warnHint.textContent = hint;
+    e.warnHint.classList.toggle('hidden', !hint);
     e.warning.classList.remove('hidden');
     // restart CSS animation
     e.warning.style.animation = 'none';

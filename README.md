@@ -16,17 +16,18 @@ Three.js (r160) loads from jsDelivr. There is no build step, and the server uses
 
 ## Controls
 
-- **WASD or arrows**: drive (W speeds up, S brakes)
-- **Space**: thrust jump, hold to hover
-- **Shift**: suction (grip, ride tunnel walls, survive blasts)
+- **A / D or ← →**: steer. Speed is automatic and rises over time.
+- **Space**: thrust jump. Hold it to fly while pressure lasts.
+- **Shift**: suction (grip, ride tunnel walls, survive blasts).
 - P pauses, M mutes. Touch buttons appear on phones.
 
 ## Events
 
-Police pursuits, roadblocks, tanker blasts, a police chopper dropping mines, missing bridge sections,
-an airliner crash, tunnel cave-ins and overpass collapses. Over distance, the standard speed rises
-(about 134 mph up to about 220 mph), events come closer together, and more cops and traffic appear.
-The rear thrusters fire once, for the 0–60-in-0.59 s launch.
+Police pursuits, roadblocks, tanker blasts, missing bridge sections, tunnel cave-ins, overpass collapses,
+and a police chopper that drops mines. When the chopper swoops low, thrust-fly into it to bring it down.
+Over distance, the standard speed rises (about 134 mph up to about 220 mph), events come closer together,
+and more cops and traffic appear. The rear thrusters fire once, for the 0–60-in-0.81 s launch.
+The pressure and suction tanks are small, so use them wisely. You have 3 lives (hearts).
 
 ## Leaderboard & deployment
 
@@ -41,6 +42,7 @@ The rear thrusters fire once, for the 0–60-in-0.59 s launch.
 - Fan-based suction of up to 2 G. The reveal showed the car driving up an inverted ramp and holding itself upside down.
 - SpaceX-developed cold-gas thrusters fed by ultra-high-pressure air tanks. They did kickflips, flipped over other cars and landed.
 - Trims: Performance (<1.6 s 0–60), Thrust (rear thrusters, <0.9 s), Rocket (perimeter thrusters, <0.59 s, 230+ mph).
+- 0–60 in 0.81 s shown on the reveal stream.
 - "Ano White" paint, a visor-style tinted canopy, a full-width light bar, and active wings in Track Mode.
 
 This is a fan-made game, not affiliated with Tesla or SpaceX.

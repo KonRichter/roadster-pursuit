@@ -104,7 +104,7 @@ game.onWarn = (type) => {
 };
 game.onEscape = (type) => {
   game.stats.escapes++;
-  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE', plane: 'CRASH SITE CLEARED' }[type] || 'ESCAPED';
+  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE' }[type] || 'ESCAPED';
   award(500, label, 'good');
   addPressure(15);
   sound.score();
@@ -118,6 +118,13 @@ game.onTakedown = (why) => {
   game.stats.takedowns++;
   award(400, why === 'fall' ? 'COP OVER THE EDGE' : 'TAKEDOWN', 'gold');
   addPressure(8);
+};
+game.onHeliDown = () => {
+  game.stats.takedowns++;
+  award(1500, 'CHOPPER DOWN!', 'gold');
+  addPressure(30);
+  car.fan = Math.min(100, car.fan + 30);
+  game.shake = Math.max(game.shake, 1);
 };
 game.onPursuitEnd = (w) => {
   if (w.lost > 0 && w.wrecked < w.total) { award(400, 'PURSUIT EVADED', 'good'); }
@@ -247,7 +254,6 @@ $('submit-form').addEventListener('submit', async (ev) => {
     msg.textContent = `You're #${res.rank} on the leaderboard!`;
     msg.className = 'submit-msg ok';
     renderBoard($('board-over'), res.entries, { name, score: game.lastRun.score });
-    loadInto($('board-title'));
   } catch (err) {
     msg.textContent = err.message;
     msg.className = 'submit-msg err';
@@ -258,11 +264,9 @@ $('btn-resume').addEventListener('click', () => setPaused(false));
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 bindTouch($('touch'));
 if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) $('touch').classList.remove('hidden');
-$('best-title').textContent = game.best ? ` · Best ${game.best.toLocaleString()}` : '';
-loadInto($('board-title'));
 
 // ------------------------------------------------------------------ simulation
-const ctrl = { steer: 0, boost: false, brake: false, suction: false, hopReq: false, hopHeld: false };
+const ctrl = { steer: 0, suction: false, hopReq: false, hopHeld: false };
 
 function step(dt) {
   car.update(dt, ctrl, track, game);
@@ -365,7 +369,7 @@ function syncCar(dt) {
 function syncCamera(dt) {
   const tun = !!track.tunnelAt(car.s);
   const k = 1 - Math.exp(-dt * 7);
-  camS = car.s - 9.5 - (car.boosting ? 3 : car.accelerating ? 1 : 0);
+  camS = car.s - 9.5 - (car.boosting ? 3 : 0);
   const du = tun ? wrapU(car.u - camU) : car.u - camU;
   camU += du * (1 - Math.exp(-dt * 6));
   if (tun) camU = wrapU(camU); else camU = THREE.MathUtils.clamp(camU, -9, 9);
@@ -386,7 +390,7 @@ function syncCamera(dt) {
   look.copy(F.pos).addScaledVector(F.fwd, 12).addScaledVector(camUp, 1.1);
   camera.lookAt(look);
 
-  const fovT = 66 + (car.boosting ? 16 : car.accelerating ? 4 : 0) + Math.max(0, car.v - 55) * 0.12;
+  const fovT = 66 + (car.boosting ? 16 : 0) + Math.max(0, car.v - 55) * 0.12;
   fov += (fovT - fov) * (1 - Math.exp(-dt * 4));
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
 
@@ -444,17 +448,15 @@ function frame(now) {
         else {
           hud.center('GO!', 0.7); sound.count(true);
           game.state = 'play';
-          car.frozen = false; car.launch = 0.6; car.launchFx = 1.6;
+          car.frozen = false; car.launch = 0.81; car.launchFx = 1.6;
           game.shake = 0.7;
           hud.flash(0.25);
-          setTimeout(() => game.state === 'play' && hud.center('0–60 MPH IN 0.59 s', 1.4, true), 650);
+          setTimeout(() => game.state === 'play' && hud.center('0–60 MPH IN 0.81 s', 1.4, true), 650);
         }
       }
     }
 
     ctrl.steer = input.steer();
-    ctrl.boost = input.down('boost');
-    ctrl.brake = input.down('brake');
     ctrl.suction = input.down('suction');
     ctrl.hopHeld = input.down('hop');
     if (input.hit('hop')) ctrl.hopReq = true;
