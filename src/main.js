@@ -591,3 +591,4 @@ requestAnimationFrame(frame);
 // debug handle for automated checks
 window.__game = game;
 game.camera = camera;
+game.carMesh = carMesh;
