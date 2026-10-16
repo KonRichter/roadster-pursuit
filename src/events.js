@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import * as Models from './models.js';
 import { makeFrame } from './track.js';
+import { ASSIST } from './platform.js';
 
 const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0, tower: 0 };
 const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60, tower: 30 };
@@ -164,7 +165,7 @@ export class Director {
 
   updateTower(e, d, dt) {
     const g = this.g;
-    if (!e.triggered && d < 230) {
+    if (!e.triggered && d < 230 + ASSIST.warnBonus * 60) {
       e.triggered = true; e.warned = true;
       g.onWarn('tower');
       g.sound.rumble();
@@ -202,7 +203,7 @@ export class Director {
       const d = e.s - car.s;
       if (!e.spawned && d < 470 && e.type !== 'pursuit' && e.type !== 'heli') this.spawn(e);
 
-      const warnTime = e.type === 'tunnel' ? 3.4 : 2.7;
+      const warnTime = (e.type === 'tunnel' ? 3.4 : 2.7) + ASSIST.warnBonus;
       if (!e.warned && e.type !== 'pursuit' && e.type !== 'heli' && e.type !== 'tower' && d < Math.max(car.v, 25) * warnTime) {
         e.warned = true;
         g.onWarn(e.type);

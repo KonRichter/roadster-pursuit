@@ -1,4 +1,5 @@
 // Roadster physics in track space (s, u, h).
+import { ASSIST } from './platform.js';
 import { ROAD_HALF, TUN_FLOOR, TUN_HALF, arcAngle, wrapU } from './track.js';
 
 const GRAVITY = 26;
@@ -76,7 +77,7 @@ export class Car {
     this.s += this.v * dt;
 
     // --- thrust hop (buffered for forgiving timing)
-    if (c.hopReq) this.hopBuffer = 0.2;
+    if (c.hopReq) this.hopBuffer = ASSIST.hopBuffer;
     if (this.hopBuffer > 0) {
       this.hopBuffer -= dt;
       if (this.grounded && !this.falling && !this.onWall(track) && this.pressure >= HOP_COST) {

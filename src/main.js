@@ -9,7 +9,8 @@ import { Traffic } from './traffic.js';
 import { FX } from './fx.js';
 import { Sound } from './audio.js';
 import { HUD } from './hud.js';
-import { input, bindTouch } from './input.js';
+import { input, bindTouch, bindSteer } from './input.js';
+import { IS_TOUCH, QUALITY, ASSIST } from './platform.js';
 import { loadInto, renderBoard, submitScore } from './leaderboard.js';
 
 const params = new URLSearchParams(location.search);
@@ -17,11 +18,11 @@ const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------------ renderer
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: QUALITY.antialias, powerPreference: 'high-performance' });
+let pixelRatio = QUALITY.pixelRatio;
 renderer.setPixelRatio(pixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = QUALITY.shadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
@@ -29,13 +30,13 @@ renderer.toneMappingExposure = 1.15;
 const scene = new THREE.Scene();
 const SKY = 0x0b1226;
 scene.background = new THREE.Color(SKY);
-scene.fog = new THREE.Fog(SKY, 70, 470);
+scene.fog = new THREE.Fog(SKY, 70, QUALITY.fogFar);
 
 const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.1, 1600);
 
 scene.add(new THREE.HemisphereLight(0x6f8cc8, 0x1a1420, 1.25));
 const moon = new THREE.DirectionalLight(0xb8c8ff, 1.5);
-moon.castShadow = true;
+moon.castShadow = QUALITY.shadows;
 moon.shadow.mapSize.set(1024, 1024);
 Object.assign(moon.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 160 });
 moon.shadow.bias = -0.0006;
@@ -44,7 +45,7 @@ scene.add(moon, moon.target);
 // ------------------------------------------------------------------ world
 const track = new Track(scene, renderer);
 const city = new City(scene, track);
-const fx = new FX(scene);
+const fx = new FX(scene, QUALITY.particles);
 const sound = new Sound();
 const hud = new HUD();
 const car = new Car();
@@ -193,6 +194,7 @@ function resetRun() {
 }
 
 function startRun() {
+  goFullscreen();
   sound.init();
   resetRun();
   sound.startMusic();
@@ -201,10 +203,12 @@ function startRun() {
   game.lastCount = 4;
   showScreen(null);
   hud.show(true);
+  showTouch(true);
 }
 
 function endRun() {
   game.state = 'over';
+  showTouch(false);
   sound.setMusicLevel(0.3);
   hud.show(false);
   const score = Math.floor(game.score);
@@ -236,7 +240,7 @@ function showScreen(id) {
 }
 
 function setPaused(p) {
-  if (p && game.state === 'play') { game.state = 'paused'; showScreen('screen-pause'); sound.setMusicLevel(0.25); }
+  if (p && game.state === 'play') { game.state = 'paused'; showScreen('screen-pause'); sound.setMusicLevel(0.25); input.releaseTouch(); }
   else if (!p && game.state === 'paused') { game.state = 'play'; showScreen(null); sound.setMusicLevel(0.75); }
 }
 
@@ -268,7 +272,28 @@ $('btn-restart').addEventListener('click', startRun);
 $('btn-resume').addEventListener('click', () => setPaused(false));
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 bindTouch($('touch'));
-if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) $('touch').classList.remove('hidden');
+bindSteer($('steer-zone'), $('stick-base'), $('stick-knob'));
+function showTouch(on) {
+  if (!IS_TOUCH) return;
+  $('touch').classList.toggle('hidden', !on);
+  if (!on) input.releaseTouch();
+}
+if (IS_TOUCH) {
+  // touch instructions instead of keyboard ones
+  document.querySelector('#screen-title .howto').innerHTML = `
+    <div class="how"><div class="keys"><span class="tk">&#9664; &#9654;</span></div><div class="or">drag left side</div><b>Steer</b></div>
+    <div class="how jump"><div class="keys"><span class="tk round">JUMP</span></div><div class="or">hold = fly</div><b>Thrust jump</b></div>
+    <div class="how suck"><div class="keys"><span class="tk round">SUCTION</span></div><div class="or">hold</div><b>Suction</b></div>`;
+}
+function goFullscreen() {
+  if (!IS_TOUCH || document.fullscreenElement) return;
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req) return;
+  Promise.resolve(req.call(el, { navigationUI: 'hide' }))
+    .then(() => screen.orientation?.lock?.('landscape'))
+    .catch(() => { /* not supported (e.g. iPhone Safari): play in the browser UI */ });
+}
 
 // ------------------------------------------------------------------ simulation
 const ctrl = { steer: 0, suction: false, hopReq: false, hopHeld: false };
@@ -283,7 +308,7 @@ function step(dt) {
   if (game.state === 'play' && car.invuln <= 0 && !car.falling) {
     for (const o of director.obstacles) {
       if (!o.active) continue;
-      if (Math.abs(car.s - o.s) < o.hs + 2.2 && Math.abs(wrapU(car.u - o.u)) < o.hu + 0.9 && car.h < o.hgt * 0.85) {
+      if (Math.abs(car.s - o.s) < o.hs + 2.2 && Math.abs(wrapU(car.u - o.u)) < o.hu + ASSIST.carHalfWidth && car.h < o.hgt * 0.85) {
         game.damage(o.kind);
         if (o.kind === 'roadblock' || o.kind === 'debris') o.active = false;
         o.onHit?.();
@@ -379,11 +404,12 @@ function syncCar(dt) {
 function syncCamera(dt) {
   const tun = !!track.tunnelAt(car.s);
   const k = 1 - Math.exp(-dt * 7);
-  camS = car.s - 9.5 - (car.boosting ? 3 : 0);
+  const portrait = camera.aspect < 1;
+  camS = car.s - (portrait ? 13 : 9.5) - (car.boosting ? 3 : 0);
   const du = tun ? wrapU(car.u - camU) : car.u - camU;
   camU += du * (1 - Math.exp(-dt * 6));
   if (tun) camU = wrapU(camU); else camU = THREE.MathUtils.clamp(camU, -9, 9);
-  camH += (3.3 + Math.max(car.h, -6) * 0.6 - camH) * k;
+  camH += ((portrait ? 5.4 : 3.3) + Math.max(car.h, -6) * 0.6 - camH) * k;
   const C = track.frame(camS, camU * 0.85, camH, CF, car.falling ? false : undefined);
   camPos.lerp(C.pos, 1 - Math.exp(-dt * 14));
   const F = track.frame(car.s, car.u, Math.max(car.h, -14), _F, car.falling ? false : undefined);
@@ -400,7 +426,9 @@ function syncCamera(dt) {
   look.copy(F.pos).addScaledVector(F.fwd, 12).addScaledVector(camUp, 1.1);
   camera.lookAt(look);
 
-  const fovT = 66 + (car.boosting ? 16 : 0) + Math.max(0, car.v - 55) * 0.12;
+  // keep about 72 degrees of horizontal view in portrait
+  const baseFov = portrait ? Math.min(100, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(36)) / camera.aspect))) : 66;
+  const fovT = baseFov + (car.boosting ? 16 : 0) + Math.max(0, car.v - 55) * 0.12;
   fov += (fovT - fov) * (1 - Math.exp(-dt * 4));
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
 
@@ -429,8 +457,11 @@ function adaptQuality(dt) {
   perfAcc = 0; perfN = 0;
   if (avg > 0.021 && quality > 0) {
     quality--;
-    if (quality === 1) { pixelRatio = 1; renderer.setPixelRatio(1); }
-    if (quality === 0) { renderer.shadowMap.enabled = false; moon.castShadow = false; }
+    if (quality === 1) { pixelRatio = Math.min(pixelRatio, 1); renderer.setPixelRatio(pixelRatio); }
+    if (quality === 0) {
+      renderer.shadowMap.enabled = false; moon.castShadow = false;
+      if (IS_TOUCH) { pixelRatio = 0.8; renderer.setPixelRatio(pixelRatio); }
+    }
   }
 }
 
@@ -506,11 +537,14 @@ function frame(now) {
   input.endFrame();
 }
 
-window.addEventListener('resize', () => {
+function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
+window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
+window.visualViewport?.addEventListener('resize', onResize);
+window.addEventListener('resize', onResize);
 
 // boot
 resetRun();

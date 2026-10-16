@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import * as Models from './models.js';
 import { wrapU, makeFrame } from './track.js';
+import { ASSIST } from './platform.js';
 
 const _F = makeFrame();
 const _a = new THREE.Vector3();
@@ -236,7 +237,7 @@ export class Police {
           }
         }
         if (c.state !== 'chase') continue;
-        if (!car.falling && Math.abs(car.s - c.s) < 4.5 && Math.abs(wrapU(car.u - c.u)) < 1.95 && car.h < 1.3) {
+        if (!car.falling && Math.abs(car.s - c.s) < 4.5 && Math.abs(wrapU(car.u - c.u)) < 1.0 + ASSIST.carHalfWidth && car.h < 1.3) {
           if (car.invuln <= 0) g.damage('police');
           c.v = car.v - 25;
           c.tail = 0;

@@ -76,11 +76,11 @@ export class Particles {
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export class FX {
-  constructor(scene) {
+  constructor(scene, scale = 1) {
     const tex = radialTexture('rgba(255,255,255,1)', 64);
-    this.vapor = new Particles(scene, 900, 1.1, tex);
-    this.fire = new Particles(scene, 700, 2.6, tex);
-    this.spark = new Particles(scene, 400, 0.35, tex);
+    this.vapor = new Particles(scene, Math.round(900 * scale), 1.1, tex);
+    this.fire = new Particles(scene, Math.round(700 * scale), 2.6, tex);
+    this.spark = new Particles(scene, Math.round(400 * scale), 0.35, tex);
 
     this.rings = [];
     const ringGeo = new THREE.RingGeometry(0.8, 1, 48).rotateX(-Math.PI / 2);

@@ -2,6 +2,7 @@
 // thruster tank, like drafting/drifting fills the meter in Split/Second.
 import * as Models from './models.js';
 import { wrapU } from './track.js';
+import { ASSIST } from './platform.js';
 
 const LANES = [-6, -2, 2, 6];
 
@@ -57,7 +58,7 @@ export class Traffic {
 
         const ds = car.s - t.s;
         const du = Math.abs(wrapU(car.u - t.u));
-        if (!car.falling && Math.abs(ds) < 4.4 && du < 1.9 && car.h < 1.25) {
+        if (!car.falling && Math.abs(ds) < 4.4 && du < 0.95 + ASSIST.carHalfWidth && car.h < 1.25) {
           if (car.invuln <= 0) g.damage('traffic');
           this.wreck(t);
           continue;

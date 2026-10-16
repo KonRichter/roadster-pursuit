@@ -239,25 +239,109 @@ kbd {
 .submit-msg.err { color: var(--red); }
 
 /* ---------- Touch ---------- */
-#touch { position: fixed; left: 0; right: 0; bottom: 0; pointer-events: none; }
+html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#touch { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #touch button {
-  pointer-events: auto;
-  font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--ink);
-  width: 72px; height: 72px; border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(10, 20, 36, 0.55);
-  backdrop-filter: blur(4px);
-  touch-action: none;
+  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+  font-family: var(--display); font-weight: 900; color: var(--ink);
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.28);
+  background: rgba(10, 20, 36, 0.5);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
-#touch button.active { background: rgba(55, 224, 255, 0.4); }
-.touch-left { position: absolute; left: 16px; bottom: 110px; display: flex; gap: 12px; }
-.touch-left button { font-size: 24px !important; }
+#touch button small { font-family: var(--text); font-weight: 600; font-size: 11px; color: var(--dim); }
+#touch button.active { background: rgba(55, 224, 255, 0.38); transform: scale(0.95); }
+#steer-zone {
+  position: absolute; left: 0; bottom: 0; width: 50%; height: 72%;
+  pointer-events: auto; touch-action: none;
+}
+.steer-hint {
+  position: absolute; left: max(24px, env(safe-area-inset-left)); bottom: max(26px, env(safe-area-inset-bottom));
+  font-family: var(--display); font-size: 13px; letter-spacing: 0.12em; color: rgba(234, 246, 255, 0.55);
+  padding: 12px 18px; border: 1px dashed rgba(234, 246, 255, 0.3); border-radius: 30px;
+  transition: opacity 0.6s;
+}
+#steer-zone.used .steer-hint { opacity: 0; }
+#stick-base {
+  position: fixed; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%;
+  border: 2px solid rgba(55, 224, 255, 0.45); background: rgba(55, 224, 255, 0.08);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.15s; pointer-events: none;
+}
+#steer-zone.active #stick-base { opacity: 1; }
+#stick-knob {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: rgba(55, 224, 255, 0.55); box-shadow: 0 0 18px rgba(55, 224, 255, 0.6);
+}
 .touch-right {
-  position: absolute; right: 16px; bottom: 110px;
-  display: grid; grid-template-columns: 72px 72px; gap: 10px;
+  position: absolute; width: 220px; height: 200px;
+  right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
 }
-.t-hop { border-color: #b8d4ff !important; }
-.t-suction { border-color: var(--cyan) !important; }
+.t-hop { position: absolute; right: 0; bottom: 0; width: 112px; height: 112px; font-size: 17px; border-color: #b8d4ff !important; }
+.t-suction { position: absolute; right: 118px; bottom: 58px; width: 92px; height: 92px; font-size: 12px; border-color: var(--cyan) !important; }
+.touch-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: flex; gap: 8px; }
+.touch-top button { width: 44px; height: 44px; font-size: 15px; }
+
+/* HUD layout on touch devices: keep both thumbs' areas clear */
+html.touch .hud-bottom-left {
+  left: 50%; top: max(10px, env(safe-area-inset-top)); bottom: auto; transform: translateX(-50%);
+  width: min(360px, 46vw); padding: 8px 12px; display: flex; gap: 12px;
+}
+html.touch .meter { flex: 1; }
+html.touch .meter + .meter { margin-top: 0; }
+html.touch .meter .label { font-size: 9px; }
+html.touch .meter .label span { display: none; }
+html.touch .bar { height: 10px; margin-top: 4px; }
+html.touch .hud-top-right { top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); padding: 8px 12px; }
+html.touch .hull i { font-size: 24px; }
+html.touch .hud-bottom-center { bottom: max(8px, env(safe-area-inset-bottom)); }
+html.touch #speed { font-size: 30px; }
+html.touch #warning { top: 18%; padding: 6px 16px 8px; }
+html.touch #warn-title { font-size: 17px; }
+html.touch #warn-hint { font-size: 14px; }
+html.touch .warn-chev { font-size: 14px; }
+html.touch #center-msg { font-size: 54px; }
+html.touch #center-msg.sub { font-size: 22px; }
+html.touch #popups { top: 44%; }
+html.touch .popup { font-size: 15px; }
+html.touch .popup.bad, html.touch .popup.gold { font-size: 18px; }
+html.touch .foot { display: none; }
+.tk {
+  font-family: var(--display); font-size: 12px; padding: 6px 12px; border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.06);
+}
+.tk.round { border-radius: 99px; }
+.rotate-tip { display: none; margin-top: 12px; color: var(--amber); font-weight: 700; font-size: 15px; }
+@media (orientation: portrait) { html.touch .rotate-tip { display: block; } }
+@media (orientation: portrait) {
+  html.touch .hud-bottom-left { top: auto; bottom: 232px; width: calc(100vw - 32px); }
+  html.touch .touch-right { bottom: max(70px, env(safe-area-inset-bottom)); }
+  html.touch #steer-zone { height: 60%; }
+}
+
+/* short landscape screens (phones): compact menus */
+@media (max-height: 520px) {
+  .screen { padding: 8px max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left)); align-items: flex-start; }
+  .layout { flex-direction: row !important; align-items: flex-start; }
+  .layout > .card:first-child { flex: 1 1 auto; min-width: 0; }
+  .board-card { flex: 0 0 min(300px, 38%) !important; width: auto; }
+  .card { padding: 14px 18px 14px; }
+  h1 { font-size: 34px; margin: 2px 0 6px; }
+  h2 { font-size: 26px; margin: 0; }
+  .lead { font-size: 15px; }
+  .howto { margin: 10px 0 12px; gap: 8px; }
+  .how { padding: 8px 6px; }
+  .final-score { font-size: 34px; }
+  .best { font-size: 15px; min-height: 18px; }
+  .stats { margin: 8px 0 10px; gap: 6px; }
+  .stats div { min-width: 70px; padding: 4px 6px; }
+  .stats b { font-size: 16px; }
+  .submit { margin-bottom: 10px; }
+  .submit-q { font-size: 15px; margin-bottom: 6px; }
+  .submit input { font-size: 16px; padding: 6px 10px; width: 150px; }
+  .cta { font-size: 15px; padding: 10px 26px; }
+  .board { font-size: 15px; margin-top: 6px; }
+  .board li { padding: 3px 4px; }
+}
 
 @media (max-width: 860px) {
   .layout { flex-direction: column; align-items: stretch; }
