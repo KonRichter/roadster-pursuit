@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 HOST=${HOST:-hetzner}
 
-rsync -az --delete index.html styles.css og-image.jpg apple-touch-icon.png src "$HOST":/var/www/roadster-pursuit/
+rsync -az --delete index.html styles.css legal.css impressum.html datenschutz.html nutzungsbedingungen.html \
+  og-image.jpg apple-touch-icon.png src vendor fonts "$HOST":/var/www/roadster-pursuit/
 rsync -az server deploy "$HOST":apps/roadster-pursuit/
 ssh "$HOST" 'set -e
   mkdir -p ~/roadster-data
