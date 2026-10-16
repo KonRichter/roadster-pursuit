@@ -322,3 +322,32 @@ export function makeMine() {
   }
   return mineTemplate.clone();
 }
+
+// ---------------------------------------------------------------- Radio tower (falls across the road)
+export function makeTower() {
+  const g = new THREE.Group();
+  const steel = std('towerSteel', { color: 0xc4ccd6, roughness: 0.45, metalness: 0.6, emissive: 0x2a3340, emissiveIntensity: 1 });
+  const red = std('towerRed', { color: 0xd8302a, roughness: 0.6, metalness: 0.3, emissive: 0xff2a1a, emissiveIntensity: 0.9 });
+  // pedestal from the ground up to deck level (doesn't fall)
+  g.add(mesh(box(4, 12, 4), concrete(), 0, -6, 0, false));
+  const mast = new THREE.Group();
+  const H = 36, W = 2.8;
+  for (const x of [-W / 2, W / 2]) for (const z of [-W / 2, W / 2]) mast.add(mesh(box(0.36, H, 0.36), steel, x, H / 2, z));
+  for (let y = 4; y < H; y += 6) for (const z of [-W / 2, W / 2]) mast.add(mesh(box(0.45, 0.45, 0.45), flash.red, -W / 2, y, z, false));
+  for (let y = 2; y < H; y += 3) {
+    const mat = (y / 3) % 2 < 1 ? red : steel;
+    mast.add(mesh(box(W, 0.3, 0.3), mat, 0, y, W / 2, false));
+    mast.add(mesh(box(W, 0.3, 0.3), mat, 0, y, -W / 2, false));
+    mast.add(mesh(box(0.3, 0.3, W), mat, W / 2, y, 0, false));
+    mast.add(mesh(box(0.3, 0.3, W), mat, -W / 2, y, 0, false));
+    const brace = mesh(box(0.12, 3.6, 0.12), steel, 0, y + 1.5, W / 2, false);
+    brace.rotation.z = 0.6;
+    mast.add(brace);
+  }
+  mast.add(mesh(box(0.15, 5, 0.15), steel, 0, H + 2.5, 0, false));
+  mast.add(mesh(box(0.5, 0.5, 0.5), flash.red, 0, H + 5, 0, false));
+  mast.add(mesh(box(0.4, 0.4, 0.4), flash.red, W / 2, H * 0.6, W / 2, false));
+  g.add(mast);
+  g.userData.mast = mast;
+  return g;
+}

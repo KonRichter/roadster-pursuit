@@ -4,8 +4,8 @@ import * as THREE from 'three';
 import * as Models from './models.js';
 import { makeFrame } from './track.js';
 
-const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0 };
-const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60 };
+const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0, tower: 0 };
+const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60, tower: 30 };
 const GAP_LEN = 36;
 export const INFO = {
   roadblock: { title: 'POLICE ROADBLOCK', hint: 'SPACE: thrust hop over it' },
@@ -14,10 +14,11 @@ export const INFO = {
   gap: { title: 'BRIDGE OUT', hint: 'SPACE + HOLD: thrust jump & hover across' },
   tunnel: { title: 'TUNNEL CAVE-IN', hint: 'HOLD SHIFT + steer up the wall' },
   pursuit: { title: 'POLICE INBOUND – WATCH OUT!', hint: '' },
-  heli: { title: 'POLICE CHOPPER', hint: 'It drops mines in your lane: dodge or hop' },
-  swoop: { title: 'CHOPPER SWOOPING LOW', hint: 'SPACE + HOLD: thrust-fly into it to bring it down!' },
+  heli: { title: 'POLICE CHOPPER', hint: 'Dodge the mines · ram it when it swoops low' },
+  tower: { title: 'TOWER COLLAPSE', hint: 'SPACE: jump over it!' },
+  swoop: { title: 'RAM THE HELI!', hint: 'Hold SPACE to fly up into it' },
 };
-const TUTORIAL = ['pursuit', 'roadblock', 'tanker', 'heli', 'gap', 'tunnel', 'overpass'];
+const TUTORIAL = ['pursuit', 'tower', 'roadblock', 'tanker', 'heli', 'gap', 'tunnel', 'overpass'];
 const align4 = (s) => Math.round(s / 4) * 4;
 const rand = (a, b) => a + Math.random() * (b - a);
 const _F = makeFrame();
@@ -43,6 +44,7 @@ export class Director {
     this.loose = [];
     this.obstacles = [];
     this.cursor = 160;
+    this.tutorialEnd = Infinity;
     this.count = 0;
     this.bag = [];
     this.last = null;
@@ -51,8 +53,8 @@ export class Director {
   pickType() {
     if (this.count < TUTORIAL.length) return TUTORIAL[this.count];
     if (!this.bag.length) {
-      const pool = ['roadblock', 'tanker', 'overpass', 'gap', 'tunnel', 'pursuit', 'heli'];
-      if (this.g.heat >= 2) pool.push('roadblock', 'pursuit', 'tanker', 'heli');
+      const pool = ['roadblock', 'tanker', 'overpass', 'gap', 'tunnel', 'pursuit', 'heli', 'tower'];
+      if (this.g.heat >= 2) pool.push('roadblock', 'pursuit', 'tanker', 'heli', 'tower');
       if (this.g.heat >= 3) pool.push('overpass', 'gap');
       if (this.g.heat >= 4) pool.push('pursuit', 'heli', 'roadblock');
       this.bag = shuffle(pool);
@@ -72,6 +74,7 @@ export class Director {
       if (type === 'tunnel') { e.zone = { type: 'tunnel', s0: s - PRE.tunnel, s1: s + POST.tunnel - 10 }; this.g.track.addZone(e.zone); }
       e.clear = type === 'gap' ? GAP_LEN + 4 : type === 'tunnel' ? 12 : 8;
       this.events.push(e);
+      if (this.count === TUTORIAL.length) this.tutorialEnd = s + POST[type];
       // events come faster the further you get
       const km = this.g.car.s / 1000;
       const spacing = Math.max(110, 330 - km * 28) + Math.random() * Math.max(30, 90 - km * 8);
@@ -149,6 +152,35 @@ export class Director {
       }
       this.addObs(e, { s, u: 0, hs: 6.5, hu: 10.2, hgt: 6, kind: 'rubble' });
       for (const a of e.anim) T.place(a.m, a.s, a.u, a.h, 0, a.mode);
+    } else if (e.type === 'tower') {
+      e.side = Math.random() < 0.5 ? -1 : 1;
+      e.tower = this.addMesh(e, Models.makeTower());
+      T.place(e.tower, s, e.side * 16, 0, 0, false);
+      e.ang = 0; e.angV = 0;
+      // lies across every lane once down: jump it
+      e.towerObs = this.addObs(e, { s, u: 0, hs: 1.3, hu: 9, hgt: 2.4, kind: 'tower', active: false });
+    }
+  }
+
+  updateTower(e, d, dt) {
+    const g = this.g;
+    if (!e.triggered && d < 230) {
+      e.triggered = true; e.warned = true;
+      g.onWarn('tower');
+      g.sound.rumble();
+      e.angV = 0.05;
+    }
+    if (!e.triggered || e.landed) return;
+    e.angV += 1.9 * dt;
+    e.ang = Math.min(Math.PI / 2, e.ang + e.angV * dt);
+    e.tower.userData.mast.rotation.z = -e.side * e.ang;
+    if (e.ang >= Math.PI / 2) {
+      e.landed = true;
+      e.towerObs.active = true;
+      g.shake = Math.max(g.shake, 1);
+      g.sound.boom(0.9);
+      g.blast(e.s, 5);
+      for (let u = -8; u <= 8; u += 4) { g.track.frame(e.s, u, 0.5, _F, false); g.fx.dust(_F.pos, 2, 10); g.fx.sparks(_F.pos, 0, 1, 6); }
     }
   }
 
@@ -171,12 +203,13 @@ export class Director {
       if (!e.spawned && d < 470 && e.type !== 'pursuit' && e.type !== 'heli') this.spawn(e);
 
       const warnTime = e.type === 'tunnel' ? 3.4 : 2.7;
-      if (!e.warned && e.type !== 'pursuit' && e.type !== 'heli' && d < Math.max(car.v, 25) * warnTime) {
+      if (!e.warned && e.type !== 'pursuit' && e.type !== 'heli' && e.type !== 'tower' && d < Math.max(car.v, 25) * warnTime) {
         e.warned = true;
         g.onWarn(e.type);
       }
 
       if (e.type === 'tanker' && e.spawned) this.updateTanker(e, d, dt);
+      if (e.type === 'tower' && e.spawned) this.updateTower(e, d, dt);
       if (e.type === 'overpass' && e.spawned) this.updateOverpass(e, d, dt);
       if (e.type === 'tunnel' && e.spawned && !e.triggered && d < 150) {
         e.triggered = true;
@@ -244,8 +277,8 @@ export class Director {
       const near = Math.abs(car.s - e.s) < 32 && !car.falling;
       if (near && car.suction && !e.planted) { e.planted = true; g.onPlanted(); }
       if (e.blastT <= 0 && !e.planted && Math.abs(car.s - e.s) < 45) {
-        car.vu += -e.side * 26;
         g.damage('blast');
+        car.throwOff(-e.side);
       }
     }
     if (e.burnT > 0) {

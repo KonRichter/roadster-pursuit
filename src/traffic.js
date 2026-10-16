@@ -21,7 +21,7 @@ export class Traffic {
   trySpawn() {
     const g = this.g, carS = g.car.s;
     const s = carS + 330 + Math.random() * 70;
-    if (g.track.zoneAt(s) || !g.director.isClear(s, 70)) return;
+    if (g.track.gapAt(s) || (g.track.tunnelAt(s) && s < g.director.tutorialEnd) || !g.director.isClear(s, s > g.director.tutorialEnd ? 25 : 70)) return;
     const u = LANES[(Math.random() * LANES.length) | 0];
     for (const t of this.cars) if (Math.abs(t.s - s) < 30 && Math.abs(t.u - u) < 3) return;
     const mesh = Models.makeCivilian();
@@ -35,14 +35,22 @@ export class Traffic {
     this.timer -= dt;
     if (this.timer <= 0 && car.s > 120) {
       const km = car.s / 1000;
-      this.timer = Math.max(0.3, 1.6 - km * 0.15) + Math.random() * Math.max(0.4, 1.2 - km * 0.08);
-      if (this.cars.length < Math.min(16, 7 + Math.floor(km * 1.5))) this.trySpawn();
+      const late = Math.max(0, car.s - g.director.tutorialEnd) / 1000;
+      if (late > 0) {
+        // late game: dense traffic that keeps getting denser
+        this.timer = Math.max(0.12, 0.45 - late * 0.06) + Math.random() * 0.25;
+        if (this.cars.length < Math.min(24, 12 + Math.floor(late * 3))) { this.trySpawn(); this.trySpawn(); }
+      } else {
+        this.timer = Math.max(0.3, 1.6 - km * 0.15) + Math.random() * Math.max(0.4, 1.2 - km * 0.08);
+        if (this.cars.length < Math.min(16, 7 + Math.floor(km * 1.5))) this.trySpawn();
+      }
     }
     for (const t of this.cars) {
       if (t.state === 'drive') {
         const blocked = g.director.blockedAhead(t.s, t.u, 40) || g.track.gapAt(t.s + 28) || !g.director.isClear(t.s + 30, 30);
         // far ahead in the haze: quietly take the exit instead of jamming the hazard
-        if (blocked && t.s - car.s > 110) { t.gone = true; continue; }
+        const late = car.s > g.director.tutorialEnd;
+        if (blocked && !late && t.s - car.s > 110) { t.gone = true; continue; }
         const target = blocked ? 0 : t.cruise;
         t.v += (target - t.v) * Math.min(1, dt * (blocked ? 2.5 : 1));
         t.s += t.v * dt;

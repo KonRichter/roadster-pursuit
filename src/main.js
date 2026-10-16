@@ -99,12 +99,12 @@ game.onNearMiss = (label) => {
 };
 game.onWarn = (type) => {
   const info = INFO[type];
-  hud.warn(info.title, info.hint);
+  hud.warn(info.title, info.hint, type === 'swoop' ? 4 : 2.6);
   sound.warn();
 };
 game.onEscape = (type) => {
   game.stats.escapes++;
-  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE' }[type] || 'ESCAPED';
+  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE', tower: 'TOWER JUMPED' }[type] || 'ESCAPED';
   award(500, label, 'good');
   addPressure(15);
   sound.score();
@@ -147,13 +147,17 @@ game.damage = (kind) => {
   sound.crash();
   hud.flash(0.35);
   game.shake = 1;
-  game.timeScale = 0.35;
-  hud.popup(kind === 'fall' ? 'LOST IN THE GAP' : 'WRECKED', 'bad');
+  game.timeScale = kind === 'blast' ? 0.75 : 0.35; // keep the blow-off snappy
+  hud.popup(kind === 'fall' ? 'LOST IN THE GAP' : kind === 'blast' ? 'BLOWN OFF THE ROAD' : 'WRECKED', 'bad');
   if (car.hull <= 0) {
     game.state = 'dying';
     game.overT = 1.4;
     hud.clearWarn();
   }
+};
+game.onRespawn = () => {
+  camU = 0;
+  if (game.state === 'play') hud.popup('BACK ON THE ROAD', 'good');
 };
 game.onFall = () => {
   const gap = track.zoneAt(car.s) || { s1: car.s };
@@ -180,6 +184,7 @@ function resetRun() {
   game.heat = 1; game.score = 0; game.timeScale = 1; game.shake = 0;
   game.stats = { escapes: 0, takedowns: 0, nearMisses: 0, tricks: 0, hits: 0, log: [] };
   game.nextRepair = 2500;
+  game.lateAnnounced = false;
   director.plan(0);
   track.update(0);
   city.reset(0);
@@ -290,6 +295,11 @@ function step(dt) {
   if (game.state === 'play') {
     game.score += car.v * dt * 0.5;
     game.heat = Math.min(5, 1 + Math.floor(car.s / 1500));
+    if (!game.lateAnnounced && car.s > director.tutorialEnd) {
+      game.lateAnnounced = true;
+      hud.center('RUSH HOUR', 1.6, true);
+      sound.warn();
+    }
     if (car.s > game.nextRepair) {
       game.nextRepair += 2500;
       if (car.hull < 3) { car.hull++; hud.popup('HULL REPAIRED', 'good'); }
@@ -313,7 +323,7 @@ const look = new THREE.Vector3();
 let camS = -9.5, camU = 0, camH = 3.3, fov = 68;
 
 function syncCar(dt) {
-  const F = track.frame(car.s, car.u, Math.max(car.h, -14), _F, car.falling ? false : undefined);
+  const F = track.frame(car.s, car.u, Math.max(car.h, -14), _F, car.falling || car.thrown > 0 ? false : undefined);
   _x.crossVectors(F.up, F.fwd);
   _m4.makeBasis(_x, F.up, F.fwd);
   carMesh.position.copy(F.pos);

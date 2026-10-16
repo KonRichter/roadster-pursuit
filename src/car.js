@@ -16,7 +16,7 @@ export class Car {
     this.suction = false; this.boosting = false; this.hovering = false;
     this.hull = 3; this.invuln = 0;
     this.trick = null; this.trickFlip = false; this.airTime = 0;
-    this.launch = 0; this.launchFx = 0; this.frozen = true;
+    this.launch = 0; this.launchFx = 0; this.frozen = true; this.thrown = 0;
     this.scrape = 0; this.hopBuffer = 0; this.steer = 0; this.hopBurst = 0;
   }
 
@@ -24,8 +24,30 @@ export class Car {
     return !!track.tunnelAt(this.s) && Math.abs(wrapU(this.u)) > TUN_FLOOR + 0.5;
   }
 
+  // Blown off the highway by a blast: fly over the rail, then respawn on the road.
+  throwOff(dir) {
+    this.thrown = 1.0;
+    this.vu = dir * 34; this.vh = 12; this.grounded = false; this.falling = false;
+    this.trick = { t: 0, dur: 1.1, kind: 'kickflip' };
+  }
+
   update(dt, c, track, game) {
     if (this.frozen) return;
+    if (this.thrown > 0) {
+      this.thrown -= dt;
+      this.s += this.v * 0.7 * dt;
+      this.u += this.vu * dt;
+      this.vh -= GRAVITY * dt;
+      this.h += this.vh * dt;
+      if (this.trick) this.trick.t += dt;
+      if (this.thrown <= 0) {
+        this.u = 0; this.vu = 0; this.h = 0; this.vh = 0;
+        this.grounded = true; this.trick = null;
+        this.invuln = Math.max(this.invuln, 1.8);
+        game.onRespawn();
+      }
+      return;
+    }
     const tz = track.tunnelAt(this.s);
     const gap = track.gapAt(this.s);
     this.steer += (c.steer - this.steer) * Math.min(1, dt * 10);
@@ -37,7 +59,9 @@ export class Car {
 
     // --- longitudinal
     // standard speed creeps up the longer you survive (134 mph -> ~220 mph)
-    const cruise = 60 + Math.min(38, (this.s / 1000) * 3);
+    // once every event has been seen, it gets much faster
+    const late = Math.max(0, this.s - game.director.tutorialEnd) / 1000;
+    const cruise = Math.min(125, 60 + Math.min(38, (this.s / 1000) * 3) + (late > 0 ? 8 + late * 6 : 0));
     // rear cold-gas thrusters only fire for the launch at the start of a run
     this.boosting = this.launchFx > 0;
     if (this.launchFx > 0) this.launchFx -= dt;

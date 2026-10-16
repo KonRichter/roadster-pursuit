@@ -1,7 +1,7 @@
 // Tiny WebAudio synth: electric motor whine, cold-gas thrust hiss, fan whir,
 // sirens and one-shot effects. Everything is generated, no audio files.
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
-const BPM = 88;
+const BPM = 84;
 
 export class Sound {
   constructor() {
@@ -192,26 +192,115 @@ export class Sound {
   playStep(n, t, len) {
     const bar = Math.floor(n / 16) % 16;   // 16-bar form
     const st = n % 16;
+    // Am - Bb - Fm - Eb: flat second and tritone roots
     const prog = [
-      { root: 33, pad: [57, 60, 64], mel: [69, 72, 70, 64] },   // Am
-      { root: 34, pad: [58, 62, 65], mel: [70, 69, 65, 62] },   // Bb
-      { root: 29, pad: [56, 60, 65], mel: [68, 67, 65, 60] },   // Fm
-      { root: 27, pad: [55, 58, 63], mel: [67, 63, 66, 64] },   // Eb (tritone)
+      { root: 33, pad: [57, 60, 64], mel: [69, 72, 70, 64] },
+      { root: 34, pad: [58, 62, 65], mel: [70, 69, 65, 62] },
+      { root: 29, pad: [56, 60, 65], mel: [68, 67, 65, 60] },
+      { root: 27, pad: [55, 58, 63], mel: [67, 63, 66, 64] },
     ];
     const ch = prog[Math.floor(bar / 2) % 4];
     const intro = bar < 2;
+    const arp = bar >= 4;
     const lead = bar >= 8;
 
     if (st === 0) this.mDrone(t, ch.root - 12, len * 16);
-    if (!intro && (st === 0 || st === 10 || (bar % 2 && st === 14))) this.mKick(t);
+    if (st === 0) this.mReese(t, ch.root, len * 16);
+    if (st === 0 && bar % 4 === 0) this.mBell(t, ch.root + 24);
+    // syncopated industrial beat, half-time snare
+    if (!intro && (st === 0 || st === 6 || st === 10 || (bar % 2 && st === 14))) this.mKick(t);
     if (!intro && st === 8) this.mSnare(t);
-    if (!intro && st % 2 === 0) this.mHat(t, st % 4 === 2 ? 0.03 : 0.014);
-    // rolling distorted bass, off-beat heavy, a flat-second grind at bar ends
-    const pat = [0, null, 0, 0, null, 0, 0, null, 0, null, 0, 0, null, 0, 12, bar % 2 ? 1 : 0];
-    if (!intro && pat[st] !== null) this.mBass(t, ch.root + pat[st], len * 0.85, bar);
-    if (st === 0 && bar % 2 === 0) for (const p of ch.pad) this.mPad(t, p - 12, len * 32);
+    if (!intro && (st === 3 || st === 11 || (bar % 2 && st === 15))) this.mClank(t);
+    if (!intro) this.mHat(t, st % 4 === 2 ? 0.028 : 0.012);
+    // gated distorted bass on 16ths: root, octave pops, flat-second grind
+    const pat = [0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 13, bar % 2 ? 1 : 12];
+    if (!intro) this.mBass(t, ch.root + pat[st], len * 0.7, bar);
+    // evil tritone stab on the bar
+    if (!intro && st === 0) this.mStab(t, ch.root + 12);
+    if (st === 0 && bar % 2 === 0) for (const p of ch.pad) this.mChoir(t, p - 12, len * 32);
+    // dissonant arpeggio: root, minor third, tritone, flat second
+    if (arp) {
+      const seq = [0, 3, 6, 12, 1, 6, 3, 13, 0, 3, 6, 15, 1, 6, 12, 18];
+      this.mArp(t, ch.root + 36 + seq[st], len * 0.9, bar);
+    }
     if (lead && st % 4 === 0 && !(bar % 4 === 3 && st >= 8)) this.mLead(t, ch.mel[st / 4] - 12, len * 3.5);
     if (bar % 8 === 7 && st === 0) this.mRiser(t, len * 16);
+  }
+
+  mClank(t) {
+    const ctx = this.ctx;
+    const n = ctx.createBufferSource(); n.buffer = this.noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 3400; f.Q.value = 12;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    n.connect(f); f.connect(g); g.connect(this.mIn); g.connect(this.delayIn);
+    n.start(t, Math.random()); n.stop(t + 0.14);
+  }
+
+  mReese(t, midi, dur) {
+    const ctx = this.ctx;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 6;
+    f.frequency.setValueAtTime(110, t); f.frequency.linearRampToValueAtTime(320, t + dur * 0.5); f.frequency.linearRampToValueAtTime(110, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.1, t + 0.15);
+    g.gain.setValueAtTime(0.1, t + dur - 0.15); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    f.connect(g); g.connect(this.drive);
+    for (const det of [-22, 22]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(midi); o.detune.value = det;
+      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
+    }
+  }
+
+  mStab(t, midi) {
+    const ctx = this.ctx;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(2200, t); f.frequency.exponentialRampToValueAtTime(220, t + 0.45);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.11, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    f.connect(g); g.connect(this.drive); g.connect(this.delayIn);
+    for (const iv of [0, 6, 12, 13]) { // root, tritone, octave, flat ninth
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(midi + iv); o.detune.value = (Math.random() - 0.5) * 16;
+      o.connect(f); o.start(t); o.stop(t + 0.55);
+    }
+  }
+
+  mBell(t, midi) {
+    // FM church-bell toll, inharmonic ratio for an ominous ring
+    const ctx = this.ctx, f0 = midiHz(midi);
+    const car = ctx.createOscillator(); car.frequency.value = f0;
+    const mod = ctx.createOscillator(); mod.frequency.value = f0 * 1.41;
+    const mg = ctx.createGain(); mg.gain.setValueAtTime(f0 * 2.5, t); mg.gain.exponentialRampToValueAtTime(f0 * 0.1, t + 4);
+    mod.connect(mg); mg.connect(car.frequency);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 5);
+    car.connect(g); g.connect(this.mIn); g.connect(this.delayIn);
+    car.start(t); mod.start(t); car.stop(t + 5.1); mod.stop(t + 5.1);
+  }
+
+  mChoir(t, midi, dur) {
+    // dark "aah" pad: detuned saws through two vowel formants
+    const ctx = this.ctx;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.06, t + 2.2);
+    g.gain.setValueAtTime(0.06, t + dur - 1.2); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    g.connect(this.mIn); g.connect(this.delayIn);
+    const mix = ctx.createGain(); mix.gain.value = 1;
+    for (const [fq, q] of [[650, 6], [1050, 8], [300, 3]]) {
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fq; bp.Q.value = q;
+      mix.connect(bp); bp.connect(g);
+    }
+    for (const det of [-16, -6, 6, 16]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(midi); o.detune.value = det;
+      o.connect(mix); o.start(t); o.stop(t + dur + 0.05);
+    }
+  }
+
+  mArp(t, midi, dur, bar) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = midiHz(midi);
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 5;
+    const open = 900 + 900 * (bar % 4) / 3;
+    f.frequency.setValueAtTime(open, t); f.frequency.exponentialRampToValueAtTime(300, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.035, t + 0.005); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(f); f.connect(g); g.connect(this.mIn); g.connect(this.delayIn);
+    o.start(t); o.stop(t + dur + 0.02);
   }
 
   mKick(t) {
@@ -266,21 +355,6 @@ export class Sound {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.16, t + 0.3);
     g.gain.setValueAtTime(0.16, t + dur - 0.2); g.gain.linearRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(this.mIn); o.start(t); o.stop(t + dur + 0.05);
-  }
-
-  mPad(t, midi, dur) {
-    const ctx = this.ctx;
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 1.5;
-    f.frequency.setValueAtTime(260, t); f.frequency.linearRampToValueAtTime(620, t + dur / 2); f.frequency.linearRampToValueAtTime(260, t + dur);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + 2);
-    g.gain.setValueAtTime(0.05, t + dur - 1.2); g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    f.connect(g); g.connect(this.mIn); g.connect(this.delayIn);
-    for (const det of [-14, -5, 5, 14]) {
-      const o = ctx.createOscillator(); o.type = 'sawtooth';
-      o.frequency.value = midiHz(midi); o.detune.value = det;
-      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
-    }
   }
 
   mLead(t, midi, dur) {
