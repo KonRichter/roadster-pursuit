@@ -213,7 +213,7 @@ export class Police {
         let target = ds > 12 ? car.v + 12 : ds > -6 ? car.v + 3 : car.v - 10;
         // telegraph the ram: a cop must sit on the tail briefly before contact hurts
         if (ds > 0 && ds < 14) {
-          if (c.tail === 0) g.hud.popup('COP ON YOUR TAIL!', 'bad');
+          if (c.tail === 0) g.hud.popup('COP BEHIND!', 'bad');
           c.tail += dt;
         } else c.tail = Math.max(0, c.tail - dt);
         if (ds > 0 && c.tail < 0.9) target = Math.min(target, car.v + 1);

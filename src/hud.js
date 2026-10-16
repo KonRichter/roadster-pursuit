@@ -9,6 +9,7 @@ export class HUD {
       hull: [...$('hull').children],
       warning: $('warning'), warnTitle: $('warn-title'), warnHint: $('warn-hint'),
       center: $('center-msg'), popups: $('popups'), flash: $('flash'),
+      hopBtn: document.querySelector('#touch .t-hop'), suckBtn: document.querySelector('#touch .t-suction'),
     };
     this.cache = {};
     this.warnT = 0;
@@ -30,10 +31,15 @@ export class HUD {
     this.set('pressure', Math.round(car.pressure), (v) => {
       e.pressure.style.transform = `scaleX(${v / 100})`;
       e.pressure.parentElement.classList.toggle('low', v < 15);
+      // touch: the ring around JUMP is the pressure tank
+      e.hopBtn.style.setProperty('--fill', v / 100);
+      e.hopBtn.classList.toggle('low', v < 22);
     });
     this.set('fan', Math.round(car.fan), (v) => {
       e.fan.style.transform = `scaleX(${v / 100})`;
       e.fan.parentElement.classList.toggle('low', v < 15);
+      e.suckBtn.style.setProperty('--fill', v / 100);
+      e.suckBtn.classList.toggle('low', v < 15);
     });
     this.set('hull', car.hull, (v) => e.hull.forEach((n, i) => n.classList.toggle('off', i >= v)));
 
@@ -81,7 +87,7 @@ export class HUD {
     p.className = 'popup ' + cls;
     p.textContent = text;
     this.el.popups.appendChild(p);
-    while (this.el.popups.children.length > 4) this.el.popups.firstChild.remove();
+    while (this.el.popups.children.length > 3) this.el.popups.firstChild.remove();
     setTimeout(() => p.remove(), 1400);
   }
 

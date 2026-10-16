@@ -72,7 +72,7 @@ try { game.best = Number(localStorage.getItem('roadster-pursuit-best')) || 0; } 
 function award(points, label, cls = '') {
   const pts = Math.round(points * (1 + (game.heat - 1) * 0.25));
   game.score += pts;
-  hud.popup(`${label}  +${pts}`, cls);
+  hud.popup(`+${pts}`, cls); // keep it tiny: the road ahead matters more
 }
 const addPressure = (n) => { car.pressure = Math.min(100, car.pressure + n); };
 
@@ -100,7 +100,9 @@ game.onNearMiss = (label) => {
 };
 game.onWarn = (type) => {
   const info = INFO[type];
-  hud.warn(info.title, info.hint, type === 'swoop' ? 4 : 2.6);
+  // touch players have buttons, not keys
+  const hint = IS_TOUCH ? info.hint.replace(/SPACE/g, 'JUMP').replace(/SHIFT/g, 'SUCTION') : info.hint;
+  hud.warn(info.title, hint, type === 'swoop' ? 4 : 2.6);
   sound.warn();
 };
 game.onEscape = (type) => {
@@ -149,7 +151,7 @@ game.damage = (kind) => {
   hud.flash(0.35);
   game.shake = 1;
   game.timeScale = kind === 'blast' ? 0.75 : 0.35; // keep the blow-off snappy
-  hud.popup(kind === 'fall' ? 'LOST IN THE GAP' : kind === 'blast' ? 'BLOWN OFF THE ROAD' : 'WRECKED', 'bad');
+  hud.popup(kind === 'fall' ? 'FELL!' : kind === 'blast' ? 'BLOWN OFF!' : 'WRECKED', 'bad');
   if (car.hull <= 0) {
     game.state = 'dying';
     game.overT = 1.4;
@@ -158,7 +160,7 @@ game.damage = (kind) => {
 };
 game.onRespawn = () => {
   camU = 0;
-  if (game.state === 'play') hud.popup('BACK ON THE ROAD', 'good');
+  if (game.state === 'play') hud.popup('BACK!', 'good');
 };
 game.onFall = () => {
   const gap = track.zoneAt(car.s) || { s1: car.s };
@@ -322,12 +324,12 @@ function step(dt) {
     game.heat = Math.min(5, 1 + Math.floor(car.s / 1500));
     if (!game.lateAnnounced && car.s > director.tutorialEnd) {
       game.lateAnnounced = true;
-      hud.center('RUSH HOUR', 1.6, true);
+      hud.popup('RUSH HOUR', 'gold');
       sound.warn();
     }
     if (car.s > game.nextRepair) {
       game.nextRepair += 2500;
-      if (car.hull < 3) { car.hull++; hud.popup('HULL REPAIRED', 'good'); }
+      if (car.hull < 3) { car.hull++; hud.popup('+1 \u2764', 'good'); }
     }
   }
 }
@@ -405,11 +407,12 @@ function syncCamera(dt) {
   const tun = !!track.tunnelAt(car.s);
   const k = 1 - Math.exp(-dt * 7);
   const portrait = camera.aspect < 1;
-  camS = car.s - (portrait ? 13 : 9.5) - (car.boosting ? 3 : 0);
+  // touch screens are small: sit closer so the Roadster reads bigger
+  camS = car.s - (portrait ? (IS_TOUCH ? 10.5 : 13) : (IS_TOUCH ? 7.2 : 9.5)) - (car.boosting ? 3 : 0);
   const du = tun ? wrapU(car.u - camU) : car.u - camU;
   camU += du * (1 - Math.exp(-dt * 6));
   if (tun) camU = wrapU(camU); else camU = THREE.MathUtils.clamp(camU, -9, 9);
-  camH += ((portrait ? 5.4 : 3.3) + Math.max(car.h, -6) * 0.6 - camH) * k;
+  camH += ((portrait ? (IS_TOUCH ? 4.6 : 5.4) : (IS_TOUCH ? 2.7 : 3.3)) + Math.max(car.h, -6) * 0.6 - camH) * k;
   const C = track.frame(camS, camU * 0.85, camH, CF, car.falling ? false : undefined);
   camPos.lerp(C.pos, 1 - Math.exp(-dt * 14));
   const F = track.frame(car.s, car.u, Math.max(car.h, -14), _F, car.falling ? false : undefined);
@@ -427,7 +430,7 @@ function syncCamera(dt) {
   camera.lookAt(look);
 
   // keep about 72 degrees of horizontal view in portrait
-  const baseFov = portrait ? Math.min(100, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(36)) / camera.aspect))) : 66;
+  const baseFov = portrait ? Math.min(100, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(36)) / camera.aspect))) : (IS_TOUCH ? 60 : 66);
   const fovT = baseFov + (car.boosting ? 16 : 0) + Math.max(0, car.v - 55) * 0.12;
   fov += (fovT - fov) * (1 - Math.exp(-dt * 4));
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -492,7 +495,7 @@ function frame(now) {
           car.frozen = false; car.launch = 0.81; car.launchFx = 1.6;
           game.shake = 0.7;
           hud.flash(0.25);
-          setTimeout(() => game.state === 'play' && hud.center('0–60 MPH IN 0.81 s', 1.4, true), 650);
+          setTimeout(() => game.state === 'play' && hud.popup('0–60 MPH IN 0.81 s', 'gold'), 650);
         }
       }
     }

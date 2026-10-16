@@ -1,5 +1,19 @@
 // Tiny WebAudio synth: electric motor whine, cold-gas thrust hiss, fan whir,
 // sirens and one-shot effects. Everything is generated, no audio files.
+// A tiny silent WAV played through an <audio> element in the first tap: on iOS
+// this moves the page into the "playback" audio session, so Web Audio is
+// audible even with the ringer/silent switch on.
+function silentWavUrl() {
+  const rate = 8000, n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  str(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const BPM = 84;
 
@@ -9,11 +23,32 @@ export class Sound {
     this.muted = false;
   }
 
+  // Must be called from a user gesture (tap/click/key).
+  unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* unsupported */ }
+    if (!this.unlockEl) {
+      const a = document.createElement('audio');
+      a.src = silentWavUrl();
+      a.loop = true;
+      a.setAttribute('playsinline', '');
+      a.setAttribute('x-webkit-airplay', 'deny');
+      this.unlockEl = a;
+    }
+    this.unlockEl.play().catch(() => { /* blocked: Web Audio still works with the ringer on */ });
+    if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+  }
+
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    this.unlock();
+    if (this.ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = (this.ctx = new AC());
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    // iOS can 'interrupt' or suspend the context (calls, app switches): recover on the next tap
+    const revive = () => { if (ctx.state !== 'running') this.unlock(); };
+    for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, revive, { passive: true });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) ctx.resume().catch(() => {}); });
     this.master = ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.55;
     this.master.connect(ctx.destination);

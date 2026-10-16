@@ -64,11 +64,14 @@ html, body {
 
 .hull { display: flex; gap: 8px; justify-content: flex-end; }
 .hull i {
-  font-style: normal; font-size: 34px; line-height: 1;
-  color: #ff2d55; text-shadow: 0 0 14px rgba(255, 45, 85, 0.8);
-  transition: color 0.2s, text-shadow 0.2s, transform 0.2s;
+  display: block; width: 32px; height: 29px;
+  background: #ff2d55;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath d='M12 21.6 10.3 20C4.2 14.5 0 10.7 0 6.1 0 2.6 2.7 0 6.2 0c2 0 3.9.9 5.8 2.6C13.9.9 15.8 0 17.8 0 21.3 0 24 2.6 24 6.1c0 4.6-4.2 8.4-10.3 13.9L12 21.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 22'%3E%3Cpath d='M12 21.6 10.3 20C4.2 14.5 0 10.7 0 6.1 0 2.6 2.7 0 6.2 0c2 0 3.9.9 5.8 2.6C13.9.9 15.8 0 17.8 0 21.3 0 24 2.6 24 6.1c0 4.6-4.2 8.4-10.3 13.9L12 21.6z'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 6px rgba(255, 45, 85, 0.85));
+  transition: background 0.2s, transform 0.2s, opacity 0.2s;
 }
-.hull i.off { color: rgba(255, 255, 255, 0.14); text-shadow: none; transform: scale(0.85); }
+.hull i.off { background: rgba(255, 255, 255, 0.85); opacity: 0.18; filter: none; transform: scale(0.8); }
 .heat { margin-bottom: 0; }
 .heat i {
   width: 12px; height: 12px;
@@ -122,20 +125,20 @@ html, body {
   opacity: 0; transition: opacity 0.2s;
 }
 #center-msg.show { opacity: 1; animation: pop 0.35s ease-out; }
-#center-msg.sub { font-size: 30px; }
+#center-msg.sub { font-size: 24px; top: 12%; }
 
 #popups {
-  position: absolute; top: 58%; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column-reverse; align-items: center; gap: 4px;
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;
 }
 .popup {
-  font-family: var(--display); font-weight: 700; font-size: 20px; white-space: nowrap;
+  font-family: var(--display); font-weight: 700; font-size: 15px; white-space: nowrap;
   color: var(--cyan); text-shadow: 0 0 12px rgba(55, 224, 255, 0.8);
   animation: floatUp 1.4s ease-out forwards;
 }
 .popup.good { color: #7dff9a; text-shadow: 0 0 12px rgba(80, 255, 140, 0.7); }
-.popup.bad { color: var(--red); text-shadow: 0 0 12px rgba(255, 45, 74, 0.8); font-size: 26px; }
-.popup.gold { color: var(--amber); text-shadow: 0 0 12px rgba(255, 176, 46, 0.8); font-size: 24px; }
+.popup.bad { color: var(--red); text-shadow: 0 0 10px rgba(255, 45, 74, 0.8); }
+.popup.gold { color: var(--amber); text-shadow: 0 0 10px rgba(255, 176, 46, 0.8); }
 
 #flash { position: fixed; inset: 0; pointer-events: none; background: #fff; opacity: 0; }
 
@@ -281,6 +284,20 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap
 .touch-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: flex; gap: 8px; }
 .touch-top button { width: 44px; height: 44px; font-size: 15px; }
 
+/* storage rings around the touch buttons (replace the meters on touch) */
+#touch .t-hop, #touch .t-suction { --fill: 1; }
+#touch .t-hop { --ring: #d6e6ff; }
+#touch .t-suction { --ring: #37e0ff; }
+#touch .t-hop.low, #touch .t-suction.low { --ring: #ff2d4a; }
+#touch .t-hop::before, #touch .t-suction::before {
+  content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(var(--ring) calc(var(--fill) * 1turn), rgba(255, 255, 255, 0.12) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  filter: drop-shadow(0 0 6px var(--ring));
+}
+html.touch .hud-bottom-left { display: none !important; }
+
 /* HUD layout on touch devices: keep both thumbs' areas clear */
 html.touch .hud-bottom-left {
   left: 50%; top: max(10px, env(safe-area-inset-top)); bottom: auto; transform: translateX(-50%);
@@ -292,18 +309,17 @@ html.touch .meter .label { font-size: 9px; }
 html.touch .meter .label span { display: none; }
 html.touch .bar { height: 10px; margin-top: 4px; }
 html.touch .hud-top-right { top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); padding: 8px 12px; }
-html.touch .hull i { font-size: 24px; }
-html.touch .hud-bottom-center { bottom: max(8px, env(safe-area-inset-bottom)); }
+html.touch .hull i { width: 26px; height: 24px; }
+html.touch .hud-bottom-center { top: max(8px, env(safe-area-inset-top)); bottom: auto; }
 html.touch #speed { font-size: 30px; }
-html.touch #warning { top: 18%; padding: 6px 16px 8px; }
+html.touch #warning { top: 27%; padding: 6px 16px 8px; }
 html.touch #warn-title { font-size: 17px; }
 html.touch #warn-hint { font-size: 14px; }
 html.touch .warn-chev { font-size: 14px; }
 html.touch #center-msg { font-size: 54px; }
-html.touch #center-msg.sub { font-size: 22px; }
-html.touch #popups { top: 44%; }
-html.touch .popup { font-size: 15px; }
-html.touch .popup.bad, html.touch .popup.gold { font-size: 18px; }
+html.touch #center-msg.sub { font-size: 18px; top: 13%; }
+html.touch #popups { top: calc(max(8px, env(safe-area-inset-top)) + 46px); }
+html.touch .popup { font-size: 13px; }
 html.touch .foot { display: none; }
 .tk {
   font-family: var(--display); font-size: 12px; padding: 6px 12px; border-radius: 6px;
@@ -313,7 +329,6 @@ html.touch .foot { display: none; }
 .rotate-tip { display: none; margin-top: 12px; color: var(--amber); font-weight: 700; font-size: 15px; }
 @media (orientation: portrait) { html.touch .rotate-tip { display: block; } }
 @media (orientation: portrait) {
-  html.touch .hud-bottom-left { top: auto; bottom: 232px; width: calc(100vw - 32px); }
   html.touch .touch-right { bottom: max(70px, env(safe-area-inset-bottom)); }
   html.touch #steer-zone { height: 60%; }
 }
@@ -350,7 +365,7 @@ html.touch .foot { display: none; }
 
 @media (max-width: 720px) {
   .hud-bottom-left { width: 200px; bottom: 12px; left: 12px; padding: 10px 12px; }
-  .hull i { font-size: 26px; }
+  .hull i { width: 26px; height: 24px; }
   .hud-top-right { top: 12px; right: 12px; }
   #speed { font-size: 38px; }
   #warn-title { font-size: 18px; }
@@ -368,8 +383,8 @@ html.touch .foot { display: none; }
 @keyframes warnPulse { from { box-shadow: 0 0 14px rgba(255, 45, 74, 0.3); } to { box-shadow: 0 0 40px rgba(255, 45, 74, 0.8); } }
 @keyframes pop { from { transform: scale(1.5); } to { transform: scale(1); } }
 @keyframes floatUp {
-  0% { opacity: 0; transform: translateY(10px) scale(0.9); }
-  12% { opacity: 1; transform: translateY(0) scale(1.05); }
-  80% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-36px) scale(1); }
+  0% { opacity: 0; transform: translateY(-6px); }
+  12% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
 }
