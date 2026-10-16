@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Roadster Pursuit</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Cpath d=%22M2 22 L10 13 L22 12 L30 20 L30 24 L2 24Z%22 fill=%22%23e9edf0%22/%3E%3Crect x=%224%22 y=%2221%22 width=%2224%22 height=%221.5%22 fill=%22%23ff2d4a%22/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-top-left panel">
+      <div class="label">SCORE</div>
+      <div id="score" class="big">0</div>
+      <div id="dist" class="small">0.00 km</div>
+    </div>
+
+    <div class="hud-top-right panel">
+      <div class="label">HULL</div>
+      <div id="hull" class="hull"><i></i><i></i><i></i></div>
+      <div class="label">HEAT</div>
+      <div id="heat" class="heat"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div id="warning" class="hidden">
+      <div class="warn-chev">&#9650;</div>
+      <div id="warn-title"></div>
+      <div id="warn-hint"></div>
+    </div>
+
+    <div id="center-msg"></div>
+    <div id="popups"></div>
+
+    <div class="hud-bottom-left panel">
+      <div class="meter">
+        <div class="label">THRUST <span>PRESSURE</span></div>
+        <div class="bar pressure"><i id="m-pressure"></i></div>
+      </div>
+      <div class="meter">
+        <div class="label">SUCTION <span>FANS</span></div>
+        <div class="bar fan"><i id="m-fan"></i></div>
+      </div>
+    </div>
+
+    <div class="hud-bottom-center">
+      <div id="speed">0</div>
+      <div class="unit">MPH</div>
+    </div>
+
+  </div>
+
+  <div id="touch" class="hidden">
+    <div class="touch-left">
+      <button data-action="left" aria-label="Steer left">&#9664;</button>
+      <button data-action="right" aria-label="Steer right">&#9654;</button>
+    </div>
+    <div class="touch-right">
+      <button data-action="boost" class="t-boost">GAS</button>
+      <button data-action="suction" class="t-suction">SUCK</button>
+      <button data-action="hop" class="t-hop">HOP</button>
+    </div>
+  </div>
+
+  <div id="screen-title" class="screen">
+    <div class="layout">
+      <div class="card">
+        <div class="kicker">2nd-Gen Roadster · Escape Run</div>
+        <h1>ROADSTER<br><span>PURSUIT</span></h1>
+        <p class="lead">The cops want the new Roadster. Escape the chaos for as long as you can.</p>
+        <div class="howto">
+          <div class="how"><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div class="or">or arrows</div><b>Drive</b></div>
+          <div class="how jump"><div class="keys"><kbd class="wide">SPACE</kbd></div><div class="or">hold = hover</div><b>Thrust jump</b></div>
+          <div class="how suck"><div class="keys"><kbd class="wide">SHIFT</kbd></div><div class="or">hold</div><b>Suction</b></div>
+        </div>
+        <button id="btn-start" class="cta">START RUN</button>
+        <div class="foot">Enter to start · P pause · M mute<span id="best-title"></span></div>
+      </div>
+      <div class="card board-card">
+        <div class="kicker">Leaderboard</div>
+        <ol id="board-title" class="board"><li class="muted">Loading…</li></ol>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-pause" class="screen hidden">
+    <div class="card small-card">
+      <h2>PAUSED</h2>
+      <button id="btn-resume" class="cta">RESUME</button>
+      <div class="foot">P / Esc to resume</div>
+    </div>
+  </div>
+
+  <div id="screen-over" class="screen hidden">
+    <div class="layout">
+      <div class="card">
+        <div class="kicker">Run over</div>
+        <h2 id="over-title">BUSTED</h2>
+        <div class="final-score" id="over-score">0</div>
+        <div id="over-best" class="best"></div>
+        <div class="stats">
+          <div><b id="st-dist">0</b><span>km</span></div>
+          <div><b id="st-escapes">0</b><span>escapes</span></div>
+          <div><b id="st-takedowns">0</b><span>takedowns</span></div>
+          <div><b id="st-near">0</b><span>near misses</span></div>
+        </div>
+        <form id="submit-form" class="submit" autocomplete="off">
+          <div class="submit-q">Put your nickname and score on the leaderboard?</div>
+          <div class="submit-row">
+            <input id="nick" maxlength="16" placeholder="Nickname" spellcheck="false" aria-label="Nickname">
+            <button type="submit" class="cta small">YES, SUBMIT</button>
+            <button type="button" id="btn-skip" class="ghost">No thanks</button>
+          </div>
+          <div id="submit-msg" class="submit-msg"></div>
+        </form>
+        <button id="btn-restart" class="cta">RUN AGAIN</button>
+        <div class="foot">Enter to restart</div>
+      </div>
+      <div class="card board-card">
+        <div class="kicker">Leaderboard</div>
+        <ol id="board-over" class="board"><li class="muted">Loading…</li></ol>
+      </div>
+    </div>
+  </div>
+
+  <div id="flash"></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

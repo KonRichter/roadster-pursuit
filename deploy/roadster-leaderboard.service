@@ -1,0 +1,14 @@
+[Unit]
+Description=Roadster Pursuit leaderboard API (SQLite)
+After=network.target
+
+[Service]
+User=konstantin
+WorkingDirectory=/home/konstantin/apps/roadster-pursuit
+ExecStart=/usr/bin/python3 /home/konstantin/apps/roadster-pursuit/server/leaderboard.py --port 3010 --db /home/konstantin/roadster-data/leaderboard.sqlite
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
