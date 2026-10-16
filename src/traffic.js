@@ -22,7 +22,8 @@ export class Traffic {
   trySpawn() {
     const g = this.g, carS = g.car.s;
     const s = carS + 330 + Math.random() * 70;
-    if (g.track.gapAt(s) || (g.track.tunnelAt(s) && s < g.director.tutorialEnd) || !g.director.isClear(s, s > g.director.tutorialEnd ? 25 : 70)) return;
+    // the head-over loop must stay empty: you can't dodge anything up there
+    if (this.nearLoop(s) || g.track.gapAt(s) || (g.track.tunnelAt(s) && s < g.director.tutorialEnd) || !g.director.isClear(s, s > g.director.tutorialEnd ? 25 : 70)) return;
     const u = LANES[(Math.random() * LANES.length) | 0];
     for (const t of this.cars) if (Math.abs(t.s - s) < 30 && Math.abs(t.u - u) < 3) return;
     const mesh = Models.makeCivilian();
@@ -48,7 +49,9 @@ export class Traffic {
     }
     for (const t of this.cars) {
       if (t.state === 'drive') {
-        const blocked = g.director.blockedAhead(t.s, t.u, 40) || g.track.gapAt(t.s + 28) || g.track.twistAt(t.s + 40) || !g.director.isClear(t.s + 30, 30);
+        // heading into the loop: pull off the road instead of driving (or queueing) into it
+        if (this.nearLoop(t.s)) { t.gone = true; continue; }
+        const blocked = g.director.blockedAhead(t.s, t.u, 40) || g.track.gapAt(t.s + 28) || !g.director.isClear(t.s + 30, 30);
         // far ahead in the haze: quietly take the exit instead of jamming the hazard
         const late = car.s > g.director.tutorialEnd;
         if (blocked && !late && t.s - car.s > 110) { t.gone = true; continue; }
@@ -80,6 +83,11 @@ export class Traffic {
       const t = this.cars[i];
       if (t.gone || car.s - t.s > 60 || t.s - car.s > 800) { g.scene.remove(t.mesh); this.cars.splice(i, 1); }
     }
+  }
+
+  nearLoop(s) {
+    const T = this.g.track;
+    return !!(T.twistAt(s) || T.twistAt(s + 40) || T.twistAt(s + 80));
   }
 
   wreck(t) {

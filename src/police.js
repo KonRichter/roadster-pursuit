@@ -227,7 +227,8 @@ export class Police {
         c.s += c.v * dt;
 
         if (T.gapAt(c.s)) { this.wreck(c, 'fall'); continue; }
-        if (T.twistAt(c.s) && Math.cos(T.rollAt(c.s)) < 0.25) { this.wreck(c, 'fall'); c.mesh.visible = false; continue; }
+        // cops don't follow you into the head-over loop: they give up at the entrance
+        if (T.twistAt(c.s + 12)) { c.state = 'lost'; c.wave.lost++; continue; }
         for (const o of g.director.obstacles) {
           if (o.active && Math.abs(c.s - o.s) < o.hs + 2.3 && Math.abs(c.u - o.u) < o.hu + 0.95) { o.onHit?.(); this.wreck(c, 'crash'); break; }
         }
