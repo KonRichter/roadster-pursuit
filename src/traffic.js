@@ -48,7 +48,7 @@ export class Traffic {
     }
     for (const t of this.cars) {
       if (t.state === 'drive') {
-        const blocked = g.director.blockedAhead(t.s, t.u, 40) || g.track.gapAt(t.s + 28) || !g.director.isClear(t.s + 30, 30);
+        const blocked = g.director.blockedAhead(t.s, t.u, 40) || g.track.gapAt(t.s + 28) || g.track.twistAt(t.s + 40) || !g.director.isClear(t.s + 30, 30);
         // far ahead in the haze: quietly take the exit instead of jamming the hazard
         const late = car.s > g.director.tutorialEnd;
         if (blocked && !late && t.s - car.s > 110) { t.gone = true; continue; }

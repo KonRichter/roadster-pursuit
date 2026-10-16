@@ -76,44 +76,217 @@ function pivoted(pivotY) {
 }
 
 // ---------------------------------------------------------------- Roadster
+// The body is lofted from cross-sections along the car: a rounded
+// superellipse per station whose width, floor and roof follow keyframed
+// curves. That gives the SR-71-style wedge, flared haunches over the wheels,
+// a tucked-under lower body (so the wheels show) and a fighter-jet canopy.
+function keyed(keys) {
+  return (z) => {
+    if (z <= keys[0][0]) return keys[0][1];
+    for (let i = 1; i < keys.length; i++) {
+      const [z1, v1] = keys[i];
+      if (z <= z1) {
+        const [z0, v0] = keys[i - 1];
+        const t = (z - z0) / (z1 - z0);
+        return v0 + (v1 - v0) * t * t * (3 - 2 * t);
+      }
+    }
+    return keys[keys.length - 1][1];
+  };
+}
+
+function loft({ z0, z1, rings = 40, segs = 36, W, B, T, n = 3.2, tumble = 0.12, tuck = 0.8, caps = true }) {
+  const pos = [], idx = [];
+  const ring = [];
+  for (let i = 0; i <= rings; i++) {
+    const z = z0 + ((z1 - z0) * (1 - Math.cos((Math.PI * i) / rings))) / 2; // denser at the ends
+    const w = W(z), b = B(z), t = T(z);
+    const yc = (b + t) / 2, hy = (t - b) / 2;
+    const r = [];
+    for (let j = 0; j < segs; j++) {
+      const a = (2 * Math.PI * j) / segs;
+      const c = Math.cos(a), sn = Math.sin(a);
+      let x = w * Math.sign(c) * Math.pow(Math.abs(c), 2 / n);
+      const y = yc + hy * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n);
+      x *= sn > 0 ? 1 - tumble * sn : 1 - (1 - tuck) * -sn; // tumblehome on top, tuck underneath
+      r.push(pos.length / 3);
+      pos.push(x, y, z);
+    }
+    ring.push(r);
+  }
+  for (let i = 0; i < rings; i++) {
+    for (let j = 0; j < segs; j++) {
+      const j2 = (j + 1) % segs;
+      const a = ring[i][j], b = ring[i][j2], c = ring[i + 1][j], d = ring[i + 1][j2];
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  if (!caps) return geo;
+  // flat end caps as their own geometry so they get crisp normals
+  const cap = (ri, front) => {
+    const cp = [], ci = [];
+    let cx = 0, cy = 0, cz = 0;
+    for (const k of ring[ri]) { cx += pos[k * 3]; cy += pos[k * 3 + 1]; cz += pos[k * 3 + 2]; }
+    const m = ring[ri].length;
+    cp.push(cx / m, cy / m, cz / m);
+    for (const k of ring[ri]) cp.push(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]);
+    for (let j = 0; j < m; j++) {
+      const j2 = (j + 1) % m;
+      if (front) ci.push(0, j + 1, j2 + 1); else ci.push(0, j2 + 1, j + 1);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+    g.setIndex(ci);
+    g.computeVertexNormals();
+    return g;
+  };
+  return { body: geo, back: cap(0, false), front: cap(rings, true) };
+}
+
+const carMats = [];
+function physical(key, o) {
+  if (!mats[key]) { mats[key] = new THREE.MeshPhysicalMaterial(o); carMats.push(mats[key]); }
+  return mats[key];
+}
+
+// Neon-city reflections for the car paint, glass and rims (built once).
+export function applyCarEnvironment(renderer) {
+  const env = new THREE.Scene();
+  env.add(new THREE.Mesh(new THREE.BoxGeometry(100, 100, 100), new THREE.MeshBasicMaterial({ color: 0x070910, side: THREE.BackSide })));
+  const strip = (color, w, h, d, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color }));
+    m.position.set(x, y, z);
+    env.add(m);
+  };
+  strip(0xbfe8ff, 60, 1.2, 4, 0, 40, 0);       // sky glow overhead
+  strip(0x37e0ff, 2, 14, 80, 46, 8, 0);        // cyan neon right
+  strip(0xff3d9a, 2, 10, 80, -46, 4, 0);       // magenta neon left
+  strip(0xffb04a, 70, 2, 2, 0, 10, -46);       // sodium lamps ahead
+  strip(0x2a3a66, 90, 30, 2, 0, -5, 46);       // dim city behind
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const tex = pmrem.fromScene(env, 0.03).texture;
+  pmrem.dispose();
+  for (const m of carMats) { m.envMap = tex; m.needsUpdate = true; }
+  return tex;
+}
+
+function makeWheel(side) {
+  const g = new THREE.Group();
+  const tire = std('tire', { color: 0x0b0b0d, roughness: 0.92 });
+  const rim = physical('rimGun', { color: 0x3a4048, roughness: 0.28, metalness: 0.9, envMapIntensity: 0.9 });
+  const capMat = physical('rimCap', { color: 0xd9dee4, roughness: 0.2, metalness: 1, envMapIntensity: 1 });
+  g.add(mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.32, 28).rotateZ(Math.PI / 2), tire, 0, 0, 0, false));
+  g.add(mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.335, 24).rotateZ(Math.PI / 2), rim, 0, 0, 0, false));
+  // turbine-style aero spokes on the outer face
+  for (let k = 0; k < 6; k++) {
+    const sp = mesh(box(0.03, 0.27, 0.07), capMat, side * 0.17, 0, 0, false);
+    sp.geometry = sp.geometry.clone().translate(0, 0.13, 0);
+    sp.rotation.x = (k / 6) * Math.PI * 2 + 0.25;
+    g.add(sp);
+  }
+  g.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.35, 12).rotateZ(Math.PI / 2), capMat, 0, 0, 0, false));
+  return g;
+}
+
 export function makeRoadster() {
   const { outer, root } = pivoted(0.6);
-  const ano = std('ano', { color: 0xe9edf0, roughness: 0.26, metalness: 0.3 });
-  const visor = std('visor', { color: 0x06080c, roughness: 0.04, metalness: 0.95 });
-  const carbon = std('carbon', { color: 0x14171c, roughness: 0.5, metalness: 0.4 });
+  const ano = physical('anoWhite', {
+    color: 0xe8ebee, roughness: 0.34, metalness: 0.12, clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 0.75,
+  });
+  const visor = physical('visorGlass', {
+    color: 0x070b12, roughness: 0.04, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.4,
+  });
+  const carbon = physical('carbonFiber', { color: 0x15181d, roughness: 0.42, metalness: 0.5, clearcoat: 0.6, envMapIntensity: 0.5 });
+  const dark = std('trimDark', { color: 0x0c0e12, roughness: 0.7, metalness: 0.2 });
 
-  const body = mesh(extrudeProfile([
-    [2.22, 0.2], [2.32, 0.4], [1.6, 0.6], [0.95, 0.73], [0.1, 1.06], [-0.9, 1.06],
-    [-1.8, 0.88], [-2.26, 0.78], [-2.3, 0.3], [-2.0, 0.15], [1.95, 0.15],
-  ], 1.8), ano);
-  root.add(body);
+  // ---- body
+  const body = loft({
+    z0: -2.32, z1: 2.36, rings: 44, segs: 40, n: 3.4, tumble: 0.14, tuck: 0.78,
+    W: keyed([[-2.32, 0.84], [-2.12, 0.95], [-1.5, 1.04], [-0.95, 0.97], [-0.2, 0.92], [0.6, 0.95], [1.4, 1.03], [1.92, 0.9], [2.2, 0.68], [2.36, 0.4]]),
+    B: keyed([[-2.32, 0.25], [-2.05, 0.17], [2.05, 0.17], [2.36, 0.21]]),
+    T: keyed([[-2.32, 0.67], [-2.0, 0.76], [-1.4, 0.8], [-0.6, 0.8], [0.4, 0.75], [1.1, 0.64], [1.7, 0.54], [2.12, 0.43], [2.36, 0.3]]),
+  });
+  for (const g of [body.body, body.back, body.front]) { const m = mesh(g, ano); m.receiveShadow = true; root.add(m); }
 
-  const canopy = mesh(extrudeProfile([
-    [1.08, 0.74], [0.16, 1.12], [-0.84, 1.12], [-1.55, 0.93], [-1.2, 0.84], [0.5, 0.78],
-  ], 1.25, 0.06), visor);
-  root.add(canopy);
+  // ---- canopy: tinted visor bubble sitting in the body
+  const canopyT = keyed([[-1.5, 0.83], [-0.85, 1.04], [-0.2, 1.12], [0.4, 1.07], [0.85, 0.9], [1.08, 0.72]]);
+  const bodyT = keyed([[-2.32, 0.67], [-2.0, 0.76], [-1.4, 0.8], [-0.6, 0.8], [0.4, 0.75], [1.1, 0.64], [1.7, 0.54]]);
+  const canopy = loft({
+    z0: -1.5, z1: 1.08, rings: 30, segs: 32, n: 2.5, tumble: 0.34, tuck: 1,
+    W: keyed([[-1.5, 0.3], [-0.9, 0.6], [-0.15, 0.66], [0.55, 0.56], [1.08, 0.18]]),
+    B: (z) => bodyT(z) - 0.1,
+    T: canopyT,
+  });
+  for (const g of [canopy.body, canopy.back, canopy.front]) root.add(mesh(g, visor));
+  // thin carbon spine over the canopy (F-35 like frame line)
+  const spine = loft({
+    z0: -1.3, z1: 0.9, rings: 20, segs: 10, n: 2, tumble: 0, tuck: 1, caps: false,
+    W: () => 0.03, B: (z) => canopyT(z) - 0.01, T: (z) => canopyT(z) + 0.012,
+  });
+  root.add(mesh(spine, carbon, 0, 0, 0, false));
 
-  root.add(mesh(box(2.02, 0.16, 3.6), carbon, 0, 0.24, 0, false)); // skirts
+  // ---- wheels (spin with speed)
+  const wheels = [];
+  for (const z of [1.42, -1.44]) for (const side of [-1, 1]) {
+    const w = makeWheel(side);
+    w.position.set(side * 0.9, 0.38, z);
+    root.add(w);
+    wheels.push(w);
+  }
 
-  const tail = new THREE.MeshStandardMaterial({ color: 0x300006, emissive: 0xff1a2e, emissiveIntensity: 4 });
-  root.add(mesh(box(1.92, 0.06, 0.05), tail, 0, 0.64, -2.36, false));
-  const head = new THREE.MeshStandardMaterial({ color: 0x223040, emissive: 0xe8f4ff, emissiveIntensity: 3 });
-  root.add(mesh(box(1.55, 0.035, 0.05), head, 0, 0.41, 2.37, false));
+  // ---- lights: hidden headlight strip, wrap-around rear light bar
+  const head = new THREE.MeshStandardMaterial({ color: 0x223040, emissive: 0xeaf6ff, emissiveIntensity: 3.2 });
+  root.add(mesh(box(1.22, 0.025, 0.05), head, 0, 0.42, 2.22, false));
+  for (const sx of [-1, 1]) {
+    const dl = mesh(box(0.34, 0.02, 0.04), head, sx * 0.72, 0.4, 2.02, false);
+    dl.rotation.y = sx * 0.55;
+    root.add(dl);
+  }
+  const tail = new THREE.MeshStandardMaterial({ color: 0x300006, emissive: 0xff1a2e, emissiveIntensity: 4.2 });
+  root.add(mesh(box(1.66, 0.05, 0.04), tail, 0, 0.6, -2.335, false));
+  for (const sx of [-1, 1]) {
+    const wrap = mesh(box(0.04, 0.05, 0.42), tail, sx * 0.87, 0.6, -2.12, false);
+    wrap.rotation.y = -sx * 0.5;
+    root.add(wrap);
+  }
 
-  addWheels(root, 0.9, [1.42, -1.46]);
+  // ---- aero: splitter, diffuser with fins, side intakes, mirror cams
+  root.add(mesh(box(1.5, 0.035, 0.32), carbon, 0, 0.18, 2.12, false));
+  root.add(mesh(box(1.5, 0.14, 0.3), carbon, 0, 0.24, -2.2, false));
+  for (let x = -0.6; x <= 0.61; x += 0.3) root.add(mesh(box(0.025, 0.16, 0.32), carbon, x, 0.22, -2.21, false));
+  for (const sx of [-1, 1]) {
+    const intake = mesh(box(0.06, 0.15, 0.62), dark, sx * 0.93, 0.44, 0.62, false);
+    intake.rotation.y = sx * 0.08;
+    root.add(intake);
+    const cam = mesh(box(0.14, 0.035, 0.07), carbon, sx * 0.7, 0.78, 0.62, false);
+    cam.rotation.y = sx * 0.3;
+    root.add(cam);
+  }
 
+  // ---- suction fans: underbody discs + glowing side vents
   const fanMat = new THREE.MeshStandardMaterial({ color: 0x021016, emissive: 0x30e8ff, emissiveIntensity: 0.6 });
-  const fanGeo = new THREE.CircleGeometry(0.34, 20).rotateX(Math.PI / 2);
-  for (const x of [-0.46, 0.46]) root.add(mesh(fanGeo, fanMat, x, 0.13, -0.85, false));
-  for (const x of [-1.02, 1.02]) root.add(mesh(box(0.03, 0.09, 0.8), fanMat, x, 0.36, -0.85, false));
+  const fanGeo = new THREE.CircleGeometry(0.34, 24).rotateX(Math.PI / 2);
+  for (const x of [-0.46, 0.46]) root.add(mesh(fanGeo, fanMat, x, 0.14, -0.85, false));
+  for (const sx of [-1, 1]) root.add(mesh(box(0.025, 0.05, 0.9), fanMat, sx * 0.86, 0.27, -0.55, false));
 
-  const nozzleGeo = new THREE.CylinderGeometry(0.07, 0.1, 0.16, 10).rotateX(Math.PI / 2);
-  for (const x of [-0.55, 0.55]) root.add(mesh(nozzleGeo, carbon, x, 0.42, -2.34, false));
+  // ---- cold-gas thruster nozzles in the diffuser
+  const nozzle = new THREE.CylinderGeometry(0.075, 0.1, 0.16, 14).rotateX(Math.PI / 2);
+  const nozzleGlow = new THREE.MeshStandardMaterial({ color: 0x0b1420, emissive: 0xbfe6ff, emissiveIntensity: 0.6 });
+  for (const x of [-0.5, 0.5]) {
+    root.add(mesh(nozzle, carbon, x, 0.4, -2.34, false));
+    root.add(mesh(new THREE.CircleGeometry(0.06, 12).rotateY(Math.PI), nozzleGlow, x, 0.4, -2.425, false));
+  }
 
+  // ---- active rear wing (rises in suction / track mode)
   const wing = new THREE.Group();
-  wing.add(mesh(box(1.75, 0.04, 0.36), ano, 0, 0, 0));
-  for (const x of [-0.55, 0.55]) wing.add(mesh(box(0.04, 0.22, 0.12), carbon, x, -0.11, 0.04, false));
-  wing.position.set(0, 0.86, -1.95);
+  wing.add(mesh(box(1.72, 0.035, 0.34), carbon, 0, 0, 0));
+  for (const x of [-0.86, 0.86]) wing.add(mesh(box(0.025, 0.14, 0.38), carbon, x, -0.04, 0, false));
+  for (const x of [-0.5, 0.5]) wing.add(mesh(box(0.035, 0.2, 0.08), carbon, x, -0.1, 0.06, false));
+  wing.position.set(0, 0.86, -1.98);
   root.add(wing);
 
   const aura = new THREE.Mesh(
@@ -128,9 +301,11 @@ export function makeRoadster() {
 
   outer.userData.inner = outer.children[0];
   outer.userData.fanMat = fanMat;
+  outer.userData.nozzleGlow = nozzleGlow;
   outer.userData.aura = aura;
   outer.userData.wing = wing;
-  outer.userData.nozzlesRear = [new THREE.Vector3(-0.55, 0.42, -2.42), new THREE.Vector3(0.55, 0.42, -2.42)];
+  outer.userData.wheels = wheels;
+  outer.userData.nozzlesRear = [new THREE.Vector3(-0.5, 0.4, -2.45), new THREE.Vector3(0.5, 0.4, -2.45)];
   outer.userData.nozzlesDown = [
     new THREE.Vector3(-0.85, 0.15, 1.3), new THREE.Vector3(0.85, 0.15, 1.3),
     new THREE.Vector3(-0.85, 0.15, -1.4), new THREE.Vector3(0.85, 0.15, -1.4),

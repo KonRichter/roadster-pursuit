@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Track, makeFrame, wrapU } from './track.js';
 import { City } from './city.js';
-import { makeRoadster, updateFlash } from './models.js';
+import { makeRoadster, updateFlash, applyCarEnvironment } from './models.js';
 import { Car } from './car.js';
 import { Director, INFO } from './events.js';
 import { Police } from './police.js';
@@ -40,6 +40,7 @@ moon.castShadow = QUALITY.shadows;
 moon.shadow.mapSize.set(1024, 1024);
 Object.assign(moon.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 160 });
 moon.shadow.bias = -0.0006;
+moon.shadow.normalBias = 0.04;
 scene.add(moon, moon.target);
 
 // ------------------------------------------------------------------ world
@@ -50,6 +51,7 @@ const sound = new Sound();
 const hud = new HUD();
 const car = new Car();
 const carMesh = makeRoadster();
+applyCarEnvironment(renderer);
 scene.add(carMesh);
 const headlight = new THREE.SpotLight(0xe6efff, 420, 150, 0.5, 0.6, 1.3);
 headlight.position.set(0, 0.8, 2.2);
@@ -101,13 +103,15 @@ game.onNearMiss = (label) => {
 game.onWarn = (type) => {
   const info = INFO[type];
   // touch players have buttons, not keys
-  const hint = IS_TOUCH ? info.hint.replace(/SPACE/g, 'JUMP').replace(/SHIFT/g, 'SUCTION') : info.hint;
+  const hint = IS_TOUCH
+    ? info.hint.replace('SPACE + HOLD', 'HOLD JUMP').replace('SPACE:', 'TAP JUMP:').replace(/SPACE/g, 'JUMP').replace(/SHIFT/g, 'SUCTION')
+    : info.hint;
   hud.warn(info.title, hint, type === 'swoop' ? 4 : 2.6);
   sound.warn();
 };
 game.onEscape = (type) => {
   game.stats.escapes++;
-  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE', tower: 'TOWER JUMPED' }[type] || 'ESCAPED';
+  const label = { roadblock: 'ROADBLOCK CLEARED', tanker: 'BLAST SURVIVED', overpass: 'COLLAPSE DODGED', gap: 'GAP JUMPED', tunnel: 'WALL RIDE ESCAPE', tower: 'TOWER JUMPED', twist: 'HEAD-OVER!' }[type] || 'ESCAPED';
   award(500, label, 'good');
   addPressure(15);
   sound.score();
@@ -161,6 +165,12 @@ game.damage = (kind) => {
 game.onRespawn = () => {
   camU = 0;
   if (game.state === 'play') hud.popup('BACK!', 'good');
+};
+game.onTwistFall = () => {
+  // lost grip upside down: spark burst, then respawn after the loop like a gap fall
+  const F = track.frame(car.s, car.u, 0.5, _F);
+  fx.explode(F.pos, 0.5);
+  game.onFall();
 };
 game.onFall = () => {
   const gap = track.zoneAt(car.s) || { s1: car.s };
@@ -283,17 +293,34 @@ function showTouch(on) {
 if (IS_TOUCH) {
   // touch instructions instead of keyboard ones
   document.querySelector('#screen-title .howto').innerHTML = `
-    <div class="how"><div class="keys"><span class="tk">&#9664; &#9654;</span></div><div class="or">drag left side</div><b>Steer</b></div>
+    <div class="how"><div class="keys"><span class="tk">&#9664; &#9654;</span></div><div class="or">drag lower screen</div><b>Steer</b></div>
     <div class="how jump"><div class="keys"><span class="tk round">JUMP</span></div><div class="or">hold = fly</div><b>Thrust jump</b></div>
     <div class="how suck"><div class="keys"><span class="tk round">SUCTION</span></div><div class="or">hold</div><b>Suction</b></div>`;
 }
+// Phones/tablets are portrait-only: sideways shows a rotate prompt and pauses.
+function isLandscape() {
+  const t = screen.orientation && screen.orientation.type;
+  if (t) return t.startsWith('landscape');
+  if (typeof window.orientation === 'number') return Math.abs(window.orientation) === 90;
+  return window.innerWidth > window.innerHeight;
+}
+function checkOrientation() {
+  if (!IS_TOUCH) return;
+  const land = isLandscape();
+  document.documentElement.classList.toggle('landscape', land);
+  if (land) setPaused(true);
+}
+screen.orientation?.addEventListener?.('change', checkOrientation);
+window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 100));
+checkOrientation();
+
 function goFullscreen() {
   if (!IS_TOUCH || document.fullscreenElement) return;
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
   if (!req) return;
   Promise.resolve(req.call(el, { navigationUI: 'hide' }))
-    .then(() => screen.orientation?.lock?.('landscape'))
+    .then(() => screen.orientation?.lock?.('portrait'))
     .catch(() => { /* not supported (e.g. iPhone Safari): play in the browser UI */ });
 }
 
@@ -371,6 +398,10 @@ function syncCar(dt) {
   ud.fanMat.emissiveIntensity += ((0.6 + suck * 4) - ud.fanMat.emissiveIntensity) * Math.min(1, dt * 10);
   ud.aura.material.opacity += ((car.grounded ? suck * 0.75 : 0) - ud.aura.material.opacity) * Math.min(1, dt * 10);
   ud.wing.position.y += ((car.suction ? 1.1 : 0.86) - ud.wing.position.y) * Math.min(1, dt * 8);
+  const spin = (car.v * dt) / 0.38;
+  for (const w of ud.wheels) w.rotation.x += spin;
+  const thrusting = car.boosting || car.hovering || car.hopBurst > 0;
+  ud.nozzleGlow.emissiveIntensity += ((thrusting ? 6 : 0.6) - ud.nozzleGlow.emissiveIntensity) * Math.min(1, dt * 12);
   carMesh.visible = car.invuln <= 0 || Math.floor(game.time * 16) % 2 === 0 || game.state !== 'play';
   carMesh.updateMatrixWorld();
 
@@ -407,13 +438,14 @@ function syncCamera(dt) {
   const tun = !!track.tunnelAt(car.s);
   const k = 1 - Math.exp(-dt * 7);
   const portrait = camera.aspect < 1;
-  // touch screens are small: sit closer so the Roadster reads bigger
-  camS = car.s - (portrait ? (IS_TOUCH ? 10.5 : 13) : (IS_TOUCH ? 7.2 : 9.5)) - (car.boosting ? 3 : 0);
+  // phone held upright: high chase cam that looks far down the road, car stays big and centred
+  const tall = portrait && IS_TOUCH;
+  camS = car.s - (tall ? 8.5 : portrait ? 13 : IS_TOUCH ? 7.2 : 9.5) - (car.boosting ? 3 : 0);
   const du = tun ? wrapU(car.u - camU) : car.u - camU;
   camU += du * (1 - Math.exp(-dt * 6));
   if (tun) camU = wrapU(camU); else camU = THREE.MathUtils.clamp(camU, -9, 9);
-  camH += ((portrait ? (IS_TOUCH ? 4.6 : 5.4) : (IS_TOUCH ? 2.7 : 3.3)) + Math.max(car.h, -6) * 0.6 - camH) * k;
-  const C = track.frame(camS, camU * 0.85, camH, CF, car.falling ? false : undefined);
+  camH += ((tall ? 6 : portrait ? 5.4 : IS_TOUCH ? 2.7 : 3.3) + Math.max(car.h, -6) * 0.6 - camH) * k;
+  const C = track.frame(camS, camU * (tall ? 1 : 0.85), camH, CF, car.falling ? false : undefined);
   camPos.lerp(C.pos, 1 - Math.exp(-dt * 14));
   const F = track.frame(car.s, car.u, Math.max(car.h, -14), _F, car.falling ? false : undefined);
   camUp.lerp(C.up, 1 - Math.exp(-dt * 5)).normalize();
@@ -426,11 +458,11 @@ function syncCamera(dt) {
     game.shake = Math.max(0, game.shake - dt * 2.2);
   }
   camera.up.copy(camUp);
-  look.copy(F.pos).addScaledVector(F.fwd, 12).addScaledVector(camUp, 1.1);
+  look.copy(F.pos).addScaledVector(F.fwd, tall ? 17 : 12).addScaledVector(camUp, tall ? 0.2 : 1.1);
   camera.lookAt(look);
 
   // keep about 72 degrees of horizontal view in portrait
-  const baseFov = portrait ? Math.min(100, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(36)) / camera.aspect))) : (IS_TOUCH ? 60 : 66);
+  const baseFov = tall ? 74 : portrait ? Math.min(100, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(36)) / camera.aspect))) : (IS_TOUCH ? 60 : 66);
   const fovT = baseFov + (car.boosting ? 16 : 0) + Math.max(0, car.v - 55) * 0.12;
   fov += (fovT - fov) * (1 - Math.exp(-dt * 4));
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -442,7 +474,8 @@ function syncCamera(dt) {
 // title-screen attract camera
 function titleCamera(t) {
   const F = track.frame(car.s, 0, 0, _F);
-  camera.position.set(F.pos.x + Math.sin(t * 0.25) * 9, 2.4, F.pos.z + Math.cos(t * 0.25) * 9);
+  const r = game.titleRadius || 9;
+  camera.position.set(F.pos.x + Math.sin(t * 0.25) * r, r * 0.27, F.pos.z + Math.cos(t * 0.25) * r);
   camera.up.set(0, 1, 0);
   camera.lookAt(F.pos.x, 0.7, F.pos.z);
   moon.position.set(F.pos.x - 30, 60, F.pos.z + 10);

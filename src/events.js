@@ -2,11 +2,11 @@
 // telegraphs them, triggers them and owns the obstacle list used for collisions.
 import * as THREE from 'three';
 import * as Models from './models.js';
-import { makeFrame } from './track.js';
+import { makeFrame, centerX, TWIST_R, TWIST_LEN } from './track.js';
 import { ASSIST } from './platform.js';
 
-const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0, tower: 0 };
-const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60, tower: 30 };
+const PRE = { roadblock: 0, tanker: 0, overpass: 0, gap: 0, tunnel: 150, pursuit: 0, heli: 0, tower: 0, twist: 0 };
+const POST = { roadblock: 30, tanker: 30, overpass: 40, gap: 40, tunnel: 140, pursuit: 40, heli: 60, tower: 30, twist: TWIST_LEN + 20 };
 const GAP_LEN = 36;
 export const INFO = {
   roadblock: { title: 'POLICE ROADBLOCK', hint: 'SPACE: thrust hop over it' },
@@ -16,10 +16,11 @@ export const INFO = {
   tunnel: { title: 'TUNNEL CAVE-IN', hint: 'HOLD SHIFT + steer up the wall' },
   pursuit: { title: 'POLICE INBOUND – WATCH OUT!', hint: '' },
   heli: { title: 'POLICE CHOPPER', hint: 'Dodge the mines · ram it when it swoops low' },
-  tower: { title: 'TOWER COLLAPSE', hint: 'SPACE: jump over it!' },
+  tower: { title: 'TOWER COLLAPSE', hint: 'SPACE: hop over it!' },
+  twist: { title: 'HEAD-OVER LOOP', hint: 'HOLD SHIFT through the roll!' },
   swoop: { title: 'RAM THE HELI!', hint: 'Hold SPACE to fly up into it' },
 };
-const TUTORIAL = ['pursuit', 'tower', 'roadblock', 'tanker', 'heli', 'gap', 'tunnel', 'overpass'];
+const TUTORIAL = ['pursuit', 'tower', 'roadblock', 'tanker', 'heli', 'gap', 'tunnel', 'overpass', 'twist'];
 const align4 = (s) => Math.round(s / 4) * 4;
 const rand = (a, b) => a + Math.random() * (b - a);
 const _F = makeFrame();
@@ -56,7 +57,7 @@ export class Director {
     if (!this.bag.length) {
       const pool = ['roadblock', 'tanker', 'overpass', 'gap', 'tunnel', 'pursuit', 'heli', 'tower'];
       if (this.g.heat >= 2) pool.push('roadblock', 'pursuit', 'tanker', 'heli', 'tower');
-      if (this.g.heat >= 3) pool.push('overpass', 'gap');
+      if (this.g.heat >= 3) pool.push('overpass', 'gap', 'twist');
       if (this.g.heat >= 4) pool.push('pursuit', 'heli', 'roadblock');
       this.bag = shuffle(pool);
       if (this.bag[this.bag.length - 1] === this.last) this.bag.unshift(this.bag.pop());
@@ -71,9 +72,10 @@ export class Director {
       this.last = type;
       const s = align4(this.cursor + PRE[type]);
       const e = { type, s, spawned: false, warned: false, triggered: false, done: false, hit: false, meshes: [], obs: [], anim: [] };
+      if (type === 'twist') { e.zone = { type: 'twist', s0: s, s1: s + TWIST_LEN }; this.g.track.addZone(e.zone); }
       if (type === 'gap') { e.zone = { type: 'gap', s0: s, s1: s + GAP_LEN }; this.g.track.addZone(e.zone); }
       if (type === 'tunnel') { e.zone = { type: 'tunnel', s0: s - PRE.tunnel, s1: s + POST.tunnel - 10 }; this.g.track.addZone(e.zone); }
-      e.clear = type === 'gap' ? GAP_LEN + 4 : type === 'tunnel' ? 12 : 8;
+      e.clear = type === 'gap' ? GAP_LEN + 4 : type === 'tunnel' ? 12 : type === 'twist' ? TWIST_LEN + 4 : 8;
       this.events.push(e);
       if (this.count === TUTORIAL.length) this.tutorialEnd = s + POST[type];
       // events come faster the further you get
@@ -153,6 +155,15 @@ export class Director {
       }
       this.addObs(e, { s, u: 0, hs: 6.5, hu: 10.2, hgt: 6, kind: 'rubble' });
       for (const a of e.anim) T.place(a.m, a.s, a.u, a.h, 0, a.mode);
+    } else if (e.type === 'twist') {
+      // neon hoops around the roll axis mark the loop
+      const ringGeo = new THREE.TorusGeometry(TWIST_R + 5.5, 0.16, 6, 48);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x37e0ff });
+      for (let rs = s + 10; rs < s + TWIST_LEN - 5; rs += 26) {
+        const ring = this.addMesh(e, new THREE.Mesh(ringGeo, ringMat));
+        T.place(ring, rs, 0, 0, 0, false);
+        ring.position.set(centerX(rs), TWIST_R, -rs);
+      }
     } else if (e.type === 'tower') {
       e.side = Math.random() < 0.5 ? -1 : 1;
       e.tower = this.addMesh(e, Models.makeTower());

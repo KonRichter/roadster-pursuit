@@ -148,7 +148,7 @@ export class City {
 
   placePillar(i) {
     const p = this.pSlots[i];
-    if (this.track.gapAt(p.s)) { this.pillars.setMatrixAt(i, HIDE); return; }
+    if (this.track.gapAt(p.s) || this.track.twistAt(p.s)) { this.pillars.setMatrixAt(i, HIDE); return; }
     _p.set(centerX(p.s), GROUND_Y, -p.s);
     _q.identity();
     _s.set(1, -1.8 - GROUND_Y, 1);

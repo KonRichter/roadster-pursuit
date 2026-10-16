@@ -106,7 +106,6 @@ html, body {
 
 
 #warning {
-  position: absolute; top: 14%; left: 50%; transform: translateX(-50%);
   text-align: center; padding: 10px 26px 12px;
   border: 2px solid var(--red); border-radius: 10px;
   background: rgba(40, 0, 8, 0.6);
@@ -128,7 +127,6 @@ html, body {
 #center-msg.sub { font-size: 24px; top: 12%; }
 
 #popups {
-  position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none;
 }
 .popup {
@@ -140,6 +138,11 @@ html, body {
 .popup.bad { color: var(--red); text-shadow: 0 0 10px rgba(255, 45, 74, 0.8); }
 .popup.gold { color: var(--amber); text-shadow: 0 0 10px rgba(255, 176, 46, 0.8); }
 
+#top-stack {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  width: max-content; max-width: calc(100vw - 300px); pointer-events: none;
+}
 #flash { position: fixed; inset: 0; pointer-events: none; background: #fff; opacity: 0; }
 
 /* ---------- Screens ---------- */
@@ -254,7 +257,7 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap
 #touch button small { font-family: var(--text); font-weight: 600; font-size: 11px; color: var(--dim); }
 #touch button.active { background: rgba(55, 224, 255, 0.38); transform: scale(0.95); }
 #steer-zone {
-  position: absolute; left: 0; bottom: 0; width: 50%; height: 72%;
+  position: absolute; left: 0; bottom: 0; width: calc(100% - 132px); height: 58%;
   pointer-events: auto; touch-action: none;
 }
 .steer-hint {
@@ -276,11 +279,12 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; -webkit-tap
   background: rgba(55, 224, 255, 0.55); box-shadow: 0 0 18px rgba(55, 224, 255, 0.6);
 }
 .touch-right {
-  position: absolute; width: 220px; height: 200px;
-  right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom));
+  position: absolute; width: 116px; height: 236px;
+  right: max(12px, env(safe-area-inset-right)); bottom: max(22px, calc(env(safe-area-inset-bottom) + 8px));
 }
-.t-hop { position: absolute; right: 0; bottom: 0; width: 112px; height: 112px; font-size: 17px; border-color: #b8d4ff !important; }
-.t-suction { position: absolute; right: 118px; bottom: 58px; width: 92px; height: 92px; font-size: 12px; border-color: var(--cyan) !important; }
+/* stacked on the right edge: JUMP under the thumb, SUCTION just above */
+.t-hop { position: absolute; right: 2px; bottom: 0; width: 108px; height: 108px; font-size: 17px; border-color: #b8d4ff !important; }
+.t-suction { position: absolute; right: 12px; bottom: 132px; width: 88px; height: 88px; font-size: 12px; border-color: var(--cyan) !important; }
 .touch-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); display: flex; gap: 8px; }
 .touch-top button { width: 44px; height: 44px; font-size: 15px; }
 
@@ -312,26 +316,43 @@ html.touch .hud-top-right { top: max(10px, env(safe-area-inset-top)); right: max
 html.touch .hull i { width: 26px; height: 24px; }
 html.touch .hud-bottom-center { top: max(8px, env(safe-area-inset-top)); bottom: auto; }
 html.touch #speed { font-size: 30px; }
-html.touch #warning { top: 27%; padding: 6px 16px 8px; }
+html.touch #warning { padding: 5px 14px 7px; }
 html.touch #warn-title { font-size: 17px; }
 html.touch #warn-hint { font-size: 14px; }
 html.touch .warn-chev { font-size: 14px; }
 html.touch #center-msg { font-size: 54px; }
 html.touch #center-msg.sub { font-size: 18px; top: 13%; }
-html.touch #popups { top: calc(max(8px, env(safe-area-inset-top)) + 46px); }
+html.touch #top-stack { top: calc(max(8px, env(safe-area-inset-top)) + 54px); max-width: calc(100vw - 24px); }
 html.touch .popup { font-size: 13px; }
 html.touch .foot { display: none; }
+html.touch .screen { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+html.touch .layout { flex-direction: column; align-items: stretch; }
+html.touch .card { padding: 20px 16px 18px; }
+html.touch .howto { gap: 8px; }
+html.touch .how { padding: 12px 4px 10px; }
+html.touch .how b { font-size: 11px; }
+html.touch .stats div { min-width: 0; flex: 1 1 40%; }
+html.touch .submit-row { flex-direction: column; align-items: stretch; }
+html.touch .submit input { width: 100%; }
+html.touch .cta { width: 100%; }
 .tk {
   font-family: var(--display); font-size: 12px; padding: 6px 12px; border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.06);
 }
 .tk.round { border-radius: 99px; }
-.rotate-tip { display: none; margin-top: 12px; color: var(--amber); font-weight: 700; font-size: 15px; }
-@media (orientation: portrait) { html.touch .rotate-tip { display: block; } }
-@media (orientation: portrait) {
-  html.touch .touch-right { bottom: max(70px, env(safe-area-inset-bottom)); }
-  html.touch #steer-zone { height: 60%; }
+#rotate {
+  display: none; position: fixed; inset: 0; z-index: 50;
+  flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: #05070d; text-align: center; padding: 24px;
 }
+html.touch.landscape #rotate { display: flex; }
+.rotate-phone {
+  width: 46px; height: 80px; border: 3px solid var(--cyan); border-radius: 10px;
+  box-shadow: 0 0 20px rgba(55, 224, 255, 0.5); animation: turnUp 1.6s ease-in-out infinite;
+}
+.rotate-text { font-family: var(--display); font-weight: 900; font-size: 20px; letter-spacing: 0.06em; }
+.rotate-sub { color: var(--dim); font-size: 15px; }
+@keyframes turnUp { 0%, 20% { transform: rotate(-90deg); } 60%, 100% { transform: rotate(0deg); } }
 
 /* short landscape screens (phones): compact menus */
 @media (max-height: 520px) {
@@ -370,7 +391,6 @@ html.touch .foot { display: none; }
   #speed { font-size: 38px; }
   #warn-title { font-size: 18px; }
   #warn-hint { font-size: 15px; }
-  #warning { top: 18%; }
   #center-msg { font-size: 60px; }
   .layout { flex-direction: column; }
   .how kbd { font-size: 11px; padding: 4px 6px; }
@@ -379,7 +399,7 @@ html.touch .foot { display: none; }
 }
 
 @keyframes pulse { from { opacity: 0.75; } to { opacity: 1; } }
-@keyframes warnIn { from { transform: translateX(-50%) scale(1.3); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+@keyframes warnIn { from { transform: scale(1.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes warnPulse { from { box-shadow: 0 0 14px rgba(255, 45, 74, 0.3); } to { box-shadow: 0 0 40px rgba(255, 45, 74, 0.8); } }
 @keyframes pop { from { transform: scale(1.5); } to { transform: scale(1); } }
 @keyframes floatUp {

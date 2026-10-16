@@ -23,7 +23,8 @@ Three.js (r160) loads from jsDelivr. There is no build step, and the server uses
 
 ## Events
 
-Police pursuits, roadblocks, tanker blasts, missing bridge sections, tunnel cave-ins, overpass collapses,
+Police pursuits, a falling radio tower, roadblocks, tanker blasts, missing bridge sections, tunnel cave-ins, overpass collapses,
+a **head-over loop** (the highway does a full barrel roll; hold suction or fall off),
 and a police chopper that drops mines. When the chopper swoops low, thrust-fly into it to bring it down.
 Over distance, the standard speed rises (about 134 mph up to about 220 mph), events come closer together,
 and more cops and traffic appear. The rear thrusters fire once, for the 0–60-in-0.81 s launch.
@@ -53,7 +54,7 @@ This is a fan-made game, not affiliated with Tesla or SpaceX.
 - `src/car.js`: Roadster physics (thrust, hover, suction wall-ride).
 - `src/events.js`: event director and obstacles.
 - `src/police.js`, `src/traffic.js`: AI.
-- `src/models.js`, `src/city.js`, `src/fx.js`: visuals.
+- `src/models.js`, `src/city.js`, `src/fx.js`: visuals. The Roadster body and canopy are lofted from keyframed cross-sections.
 - `src/audio.js`: WebAudio synth sounds.
 - `src/hud.js`, `src/input.js`, `src/leaderboard.js`: UI and leaderboard client.
 - `src/main.js`: game loop.

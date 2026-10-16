@@ -11,6 +11,8 @@ export const TUN_R = 7;              // radius of the tunnel walls
 export const TUN_HALF = 2 * TUN_FLOOR + Math.PI * TUN_R; // half perimeter
 export const CHUNK = 40;
 export const GROUND_Y = -12;
+export const TWIST_R = 6; // roll axis height above the road
+export const TWIST_LEN = 280;
 const ROW = 4;
 const VIEW_AHEAD = 520;
 const KEEP_BEHIND = 40;
@@ -152,12 +154,13 @@ export class Track {
     tube.anisotropy = aniso;
 
     this.mat = {
-      road: new THREE.MeshStandardMaterial({ map: road, roughness: 0.85, metalness: 0.05 }),
+      // faint self-glow keeps the asphalt readable when it faces away from the lights (head-over loop)
+      road: new THREE.MeshStandardMaterial({ map: road, emissiveMap: road, emissive: 0xffffff, emissiveIntensity: 0.32, roughness: 0.85, metalness: 0.05 }),
       tube: new THREE.MeshStandardMaterial({
         map: tube, emissiveMap: tubeEm, emissive: 0xffffff, emissiveIntensity: 1.4,
         roughness: 0.75, metalness: 0.1, side: THREE.DoubleSide,
       }),
-      rail: new THREE.MeshStandardMaterial({ color: 0x39404c, roughness: 0.55, metalness: 0.5, side: THREE.DoubleSide }),
+      rail: new THREE.MeshStandardMaterial({ color: 0x39404c, emissive: 0x161b24, roughness: 0.55, metalness: 0.5, side: THREE.DoubleSide }),
       glow: new THREE.MeshBasicMaterial({ color: 0x37e0ff, side: THREE.DoubleSide }),
     };
   }
@@ -178,11 +181,26 @@ export class Track {
   }
   tunnelAt(s) { const z = this.zoneAt(s); return z && z.type === 'tunnel' ? z : null; }
   gapAt(s) { const z = this.zoneAt(s); return z && z.type === 'gap' ? z : null; }
+  twistAt(s) { const z = this.zoneAt(s); return z && z.type === 'twist' ? z : null; }
+  // roll angle of the road: flat lead-in/out, one full barrel roll in between
+  rollAt(s) {
+    const z = this.twistAt(s);
+    if (!z) return 0;
+    const t = Math.min(1, Math.max(0, (s - z.s0 - 30) / (z.s1 - z.s0 - 60)));
+    return Math.PI * 2 * t * t * (3 - 2 * t);
+  }
 
   // mode: undefined = auto-detect tunnel, true = force tunnel, false = force flat
   frame(s, u, h, o, mode) {
     const tun = mode === undefined ? !!this.tunnelAt(s) : mode;
     profile(tun, u, _p);
+    const phi = tun ? 0 : this.rollAt(s);
+    if (phi) {
+      const c = Math.cos(phi), sn = Math.sin(phi), y0 = _p.y - TWIST_R;
+      const x = _p.x * c - y0 * sn, y = _p.x * sn + y0 * c + TWIST_R;
+      const nx = _p.nx * c - _p.ny * sn, ny = _p.nx * sn + _p.ny * c;
+      _p.x = x; _p.y = y; _p.nx = nx; _p.ny = ny;
+    }
     const dx = centerDX(s);
     const inv = 1 / Math.hypot(dx, 1);
     const tx = dx * inv, tz = -inv;
@@ -221,11 +239,9 @@ export class Track {
     }
   }
 
-  pt(s, u, mode, out, yOff = 0) {
-    this.frame(s, u, 0, _F, mode);
-    out.copy(_F.pos);
-    out.y += yOff;
-    return out;
+  pt(s, u, mode, out, off = 0) {
+    this.frame(s, u, off, _F, mode);
+    return out.copy(_F.pos);
   }
 
   buildChunk(i) {

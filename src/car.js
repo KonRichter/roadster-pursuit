@@ -22,6 +22,7 @@ export class Car {
   }
 
   onWall(track) {
+    if (track.twistAt(this.s) && Math.cos(track.rollAt(this.s)) < 0.6) return true;
     return !!track.tunnelAt(this.s) && Math.abs(wrapU(this.u)) > TUN_FLOOR + 0.5;
   }
 
@@ -55,7 +56,8 @@ export class Car {
 
     // --- suction fans (2 G of downforce in the real car)
     this.suction = c.suction && this.fan > 1 && !this.falling;
-    if (this.suction) this.fan = Math.max(0, this.fan - 32 * dt);
+    // the loop is long: fans drain slower there so one full tank gets you round
+    if (this.suction) this.fan = Math.max(0, this.fan - (track.twistAt(this.s) ? 13 : 32) * dt);
     else this.fan = Math.min(100, this.fan + 11 * dt);
 
     // --- longitudinal
@@ -102,6 +104,14 @@ export class Car {
         // without suction the tyres can't hold the wall: slide back to the floor
         grav = -sg * (32 * Math.sin(Math.min(a, Math.PI / 2)) + (a > 1.5 ? 18 : 0));
         if (a > 0.45 && Math.sign(this.steer) === sg) targetVu = 0;
+      }
+    }
+    const tw = track.twistAt(this.s);
+    if (tw && this.grounded && !this.falling) {
+      const phi = track.rollAt(this.s);
+      if (!this.suction) {
+        grav -= Math.sin(phi) * 20; // banked: slide toward the low edge
+        if (Math.cos(phi) < 0.25) { game.onTwistFall(); return; } // upside down without suction: off you go
       }
     }
     this.vu += (targetVu - this.vu) * Math.min(1, dt * 6 * grip) + grav * dt;
